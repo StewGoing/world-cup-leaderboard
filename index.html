@@ -6,21 +6,77 @@
   <title>World Cup Fantasy Draft Decider</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    @keyframes ballMorph {
+      /* STATE 1: American Football (0% to 35%) */
+      0%, 35% {
+        transform: rotate(-15deg) scale(0.95);
+        border-radius: 40% 70% 40% 70%;
+        background: #7c2d12; /* Deep Pigskin Brown */
+        box-shadow: 
+          inset 2px 4px 0px rgba(255,255,255,0.15),
+          inset -4px -4px 0px #451a03,
+          0px 4px 10px rgba(0,0,0,0.4);
+      }
+      /* Laces Layer Overlay visibility during State 1 */
+      0%, 35% {
+        --laces-opacity: 1;
+        --soccer-opacity: 0;
+      }
+      
+      /* TRANSITION stage (35% to 65%) */
+      35% { transform: rotate(-15deg); }
+      50% { transform: rotate(180deg) scale(1.05); }
+      65% { transform: rotate(375deg); }
+
+      /* STATE 2: Classic Soccer Ball (65% to 100%) */
+      65%, 100% {
+        transform: rotate(360deg) scale(1);
+        border-radius: 50%;
+        background: #f8fafc; /* Crisp White Base */
+        box-shadow: 
+          inset 3px 3px 0px rgba(255,255,255,0.8),
+          inset -3px -3px 0px #cbd5e1,
+          0px 4px 12px rgba(0,0,0,0.5);
+        --laces-opacity: 0;
+        --soccer-opacity: 1;
+      }
+    }
+
+    .anim-ball-canvas {
+      animation: ballMorph 5s ease-in-out infinite alternate;
+      position: relative;
+      transition: all 0.4s ease-in-out;
+    }
+
+    /* Rendering dynamic pixel panels inside the vector frame safely */
+    .laces-pixel { opacity: var(--laces-opacity, 1); transition: opacity 0.3s ease; }
+    .soccer-pixel { opacity: var(--soccer-opacity, 0); transition: opacity 0.3s ease; }
+  </style>
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
   <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 text-center md:text-left flex flex-col md:flex-row md:justify-between md:items-end gap-3">
-    <div class="flex flex-col md:flex-row items-center md:items-end gap-3.5">
+    <div class="flex flex-col md:flex-row items-center md:items-end gap-4">
       
-      <div class="w-10 h-10 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-center p-1.5 shrink-0 shadow-md">
-        <div class="grid grid-cols-7 gap-[1px] w-full h-full">
-          <div class="bg-transparent"></div><div class="bg-transparent"></div><div class="bg-zinc-400"></div><div class="bg-zinc-400"></div><div class="bg-zinc-400"></div><div class="bg-transparent"></div><div class="bg-transparent"></div>
-          <div class="bg-transparent"></div><div class="bg-zinc-500"></div><div class="bg-amber-400"></div><div class="bg-amber-400"></div><div class="bg-amber-400"></div><div class="bg-zinc-500"></div><div class="bg-transparent"></div>
-          <div class="bg-transparent"></div><div class="bg-rose-500"></div><div class="bg-rose-500"></div><div class="bg-rose-300"></div><div class="bg-rose-500"></div><div class="bg-rose-500"></div><div class="bg-transparent"></div>
-          <div class="bg-rose-500"></div><div class="bg-rose-500"></div><div class="bg-emerald-400"></div><div class="bg-white"></div><div class="bg-emerald-400"></div><div class="bg-rose-500"></div><div class="bg-rose-500"></div>
-          <div class="bg-rose-600"></div><div class="bg-rose-600"></div><div class="bg-rose-600"></div><div class="bg-emerald-500"></div><div class="bg-rose-600"></div><div class="bg-rose-600"></div><div class="bg-rose-600"></div>
-          <div class="bg-transparent"></div><div class="bg-rose-700"></div><div class="bg-rose-700"></div><div class="bg-rose-700"></div><div class="bg-rose-700"></div><div class="bg-rose-700"></div><div class="bg-transparent"></div>
-          <div class="bg-transparent"></div><div class="bg-transparent"></div><div class="bg-rose-800"></div><div class="bg-rose-800"></div><div class="bg-rose-800"></div><div class="bg-transparent"></div><div class="bg-transparent"></div>
+      <div class="w-12 h-12 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-center p-1 shrink-0 shadow-lg overflow-hidden">
+        <div class="anim-ball-canvas w-9 h-9 flex items-center justify-center">
+          
+          <div class="laces-pixel absolute inset-0 flex items-center justify-center p-1">
+            <div class="grid grid-cols-5 gap-[1px] w-4 h-5">
+              <div class="bg-transparent"></div><div class="bg-white"></div><div class="bg-transparent"></div><div class="bg-white"></div><div class="bg-transparent"></div>
+              <div class="bg-white"></div><div class="bg-white"></div><div class="bg-white"></div><div class="bg-white"></div><div class="bg-white"></div>
+              <div class="bg-transparent"></div><div class="bg-white"></div><div class="bg-transparent"></div><div class="bg-white"></div><div class="bg-transparent"></div>
+            </div>
+          </div>
+
+          <div class="soccer-pixel absolute inset-0 grid grid-cols-5 gap-[1px] p-1">
+            <div class="bg-transparent"></div><div class="bg-neutral-900"></div><div class="bg-transparent"></div><div class="bg-neutral-900"></div><div class="bg-transparent"></div>
+            <div class="bg-neutral-900"></div><div class="bg-transparent"></div><div class="bg-neutral-900"></div><div class="bg-transparent"></div><div class="bg-neutral-900"></div>
+            <div class="bg-transparent"></div><div class="bg-neutral-900"></div><div class="bg-transparent"></div><div class="bg-neutral-900"></div><div class="bg-transparent"></div>
+          </div>
+
         </div>
       </div>
 
@@ -65,7 +121,7 @@
         </div>
 
     </div>
-  </main>
+  </header>
 
   <script>
     // 1. INPUT YOUR COPIED PROJECT CREDENTIALS HERE
@@ -74,7 +130,7 @@
 
     // Safety check to alert you visually if the credential keys are broken
     if (SUPABASE_ANON_KEY.includes("YOUR_FULL") || SUPABASE_ANON_KEY.length < 40) {
-      document.getElementById('loading').innerHTML = `<span class="text-rose-500 font-bold">⚠️ CRITICAL TYPO DETECTED:<br><span class="text-neutral-400 text-xs font-mono lowercase tracking-normal">The copied anon public key on line 73 is broken or missing. Update it in your index.html script to unlock the leaderboard!</span></span>`;
+      document.getElementById('loading').innerHTML = `<span class="text-rose-500 font-bold">⚠️ CRITICAL TYPO DETECTED:<br><span class="text-neutral-400 text-xs font-mono lowercase tracking-normal">The copied anon public key on line 98 is broken or missing. Update it in your index.html script to unlock the leaderboard!</span></span>`;
       document.getElementById('loading').classList.remove('animate-pulse');
     }
 
