@@ -24,18 +24,16 @@
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-neutral-950 text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-800">
-              <th class="py-4 px-4 text-center w-16">Rank</th>
+              <th class="py-4 px-6 text-left w-36">Projected Pick</th>
               <th class="py-4 px-4">Manager</th>
               <th class="py-4 px-4">Country Allocation</th>
               <th class="py-4 px-4 text-center">Wins</th>
               <th class="py-4 px-4 text-center">GD</th>
               <th class="py-4 px-4 text-center">Odds</th>
-              <th class="py-4 px-4 text-right pr-6">Projected Pick</th>
             </tr>
           </thead>
           <tbody id="leaderboard-rows" class="divide-y divide-neutral-800/60">
-            <!-- JavaScript builds rows dynamically here -->
-          </tbody>
+            </tbody>
         </table>
       </div>
     </div>
@@ -55,22 +53,14 @@
         return;
       }
 
-      // Strict custom tiebreaker logic array sorting
+      // Strict custom tiebreaker logic array sorting: Stage -> Wins -> GD -> Lowest Odds First
       const sorted = data.sort((a, b) => {
-        // 1. Stage Reached (Highest stage value ranks first)
         if (b.stage !== a.stage) return b.stage - a.stage;
-        
-        // 2. Total Wins (Highest wins rank first)
         if (b.wins !== a.wins) return b.wins - a.wins;
-        
-        // 3. Goal Difference (Highest GD ranks first)
         if (b.gd !== a.gd) return b.gd - a.gd;
-        
-        // 4. Pre-Tournament Odds (LOWEST odds number ranks first)
-        return a.odds - b.odds; 
+        return a.odds - b.odds; // Lowest odds number ranks higher
       });
 
-      
       const tbody = document.getElementById('leaderboard-rows');
       tbody.innerHTML = '';
 
@@ -82,11 +72,11 @@
         row.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
         
         let pickColor = 'text-amber-500';
-        if (pick === 1) pickColor = 'text-emerald-400 font-extrabold';
-        if (pick === 12) pickColor = 'text-rose-500 font-extrabold';
+        if (pick === 1) pickColor = 'text-emerald-400 font-black';
+        if (pick === 12) pickColor = 'text-rose-500 font-black';
 
         row.innerHTML = `
-          <td class="py-4 px-4 text-center font-black text-lg text-neutral-500">${index + 1}</td>
+          <td class="py-4 px-6 text-left font-black uppercase tracking-wider text-sm ${pickColor}">Pick #${pick}</td>
           <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm">${team.manager}</td>
           <td class="py-4 px-4 text-neutral-200 text-sm">
             <span class="text-xl mr-2 inline-block align-middle">${team.flag}</span>
@@ -95,7 +85,6 @@
           <td class="py-4 px-4 text-center font-mono font-bold text-sm">${team.wins}</td>
           <td class="py-4 px-4 text-center font-mono font-bold text-sm ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</td>
           <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(2)}</td>
-          <td class="py-4 px-4 text-right pr-6 font-black uppercase tracking-wider text-xs ${pickColor}">Pick #${pick}</td>
         `;
         tbody.appendChild(row);
       });
