@@ -57,12 +57,20 @@
 
       // Strict custom tiebreaker logic array sorting
       const sorted = data.sort((a, b) => {
+        // 1. Stage Reached (Highest stage value ranks first)
         if (b.stage !== a.stage) return b.stage - a.stage;
+        
+        // 2. Total Wins (Highest wins rank first)
         if (b.wins !== a.wins) return b.wins - a.wins;
+        
+        // 3. Goal Difference (Highest GD ranks first)
         if (b.gd !== a.gd) return b.gd - a.gd;
-        return b.odds - a.odds;
+        
+        // 4. Pre-Tournament Odds (LOWEST odds number ranks first)
+        return a.odds - b.odds; 
       });
 
+      
       const tbody = document.getElementById('leaderboard-rows');
       tbody.innerHTML = '';
 
