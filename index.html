@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World Cup Fantasy Draft Decider</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-4 md:p-8">
+
+  <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-6 mb-8 text-center md:text-left">
+    <h1 class="text-3xl font-black uppercase tracking-wider text-amber-500">World Cup Draft Decider</h1>
+    <p class="text-neutral-400 text-xs font-bold tracking-widest uppercase mt-1">Last Year's Standings. This Year's Destiny.</p>
+  </header>
+
+  <main class="max-w-5xl mx-auto">
+    <div id="loading" class="text-center py-12 text-amber-500 font-bold text-xs uppercase tracking-widest animate-pulse">
+      Connecting to Cloud Standings...
+    </div>
+
+    <div id="board-wrapper" class="hidden bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-neutral-950 text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-800">
+              <th class="py-4 px-4 text-center w-16">Rank</th>
+              <th class="py-4 px-4">Manager</th>
+              <th class="py-4 px-4">Country Allocation</th>
+              <th class="py-4 px-4 text-center">Wins</th>
+              <th class="py-4 px-4 text-center">GD</th>
+              <th class="py-4 px-4 text-center">Odds</th>
+              <th class="py-4 px-4 text-right pr-6">Projected Pick</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-rows" class="divide-y divide-neutral-800/60">
+            <!-- JavaScript builds rows dynamically here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // 1. INPUT YOUR PUBLIC CREDENTIALS HERE
+    const SUPABASE_URL = "https://grcdedmxdfdjgaextaru.supabase.co/rest/v1/";
+    const SUPABASE_ANON_KEY = "sb_publishable_qAPRKnLO0JUSBG1iwYm0Pw_Ehfr9M8Z";
+    
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function loadLeaderboard() {
+      const { data, error } = await supabaseClient.from('world_cup_leaderboard').select('*');
+      if (error) {
+        document.getElementById('loading').innerText = "Database connection error.";
+        return;
+      }
+
+      // Strict custom tiebreaker logic array sorting
+      const sorted = data.sort((a, b) => {
+        if (b.stage !== a.stage) return b.stage - a.stage;
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        if (b.gd !== a.gd) return b.gd - a.gd;
+        return b.odds - a.odds;
+      });
+
+      const tbody = document.getElementById('leaderboard-rows');
+      tbody.innerHTML = '';
+
+      sorted.forEach((team, index) => {
+        const pick = index + 1;
+        const isEliminated = team.eliminated;
+        
+        const row = document.createElement('tr');
+        row.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
+        
+        let pickColor = 'text-amber-500';
+        if (pick === 1) pickColor = 'text-emerald-400 font-extrabold';
+        if (pick === 12) pickColor = 'text-rose-500 font-extrabold';
+
+        row.innerHTML = `
+          <td class="py-4 px-4 text-center font-black text-lg text-neutral-500">${index + 1}</td>
+          <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm">${team.manager}</td>
+          <td class="py-4 px-4 text-neutral-200 text-sm">
+            <span class="text-xl mr-2 inline-block align-middle">${team.flag}</span>
+            <span class="align-middle uppercase tracking-wider text-xs font-bold">${team.country}</span>
+          </td>
+          <td class="py-4 px-4 text-center font-mono font-bold text-sm">${team.wins}</td>
+          <td class="py-4 px-4 text-center font-mono font-bold text-sm ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</td>
+          <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(2)}</td>
+          <td class="py-4 px-4 text-right pr-6 font-black uppercase tracking-wider text-xs ${pickColor}">Pick #${pick}</td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('board-wrapper').classList.remove('hidden');
+    }
+
+    loadLeaderboard();
+  </script>
+</body>
+</html>
