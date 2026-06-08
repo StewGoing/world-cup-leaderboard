@@ -1,0 +1,19 @@
+name: Live World Cup Standings Sync
+on:
+  schedule:
+    - cron: '0 */12 * * *' # Triggers automatically every 12 hours
+  workflow_dispatch: # Allows you to manually trigger it with a button click
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: node updater.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
