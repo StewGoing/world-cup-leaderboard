@@ -45,6 +45,7 @@
     const SUPABASE_URL = "https://grcdedmxdfdjgaextaru.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_qAPRKnLO0JUSBG1iwYm0Pw_Ehfr9M8Z";
     
+    // Correct CDN Initialization syntax
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const STAGES = {
@@ -58,39 +59,66 @@
     };
 
     async function loadLeaderboard() {
-      const { data, error } = await supabaseClient.from('world_cup_leaderboard').select('*');
-      if (error) {
-        document.getElementById('loading').innerText = "Database connection error.";
-        return;
+      try {
+        const { data, error } = await supabaseClient.from('world_cup_leaderboard').select('*');
+        
+        if (error) {
+          console.error(error);
+          document.getElementById('loading').innerText = "Database connection error.";
+          return;
+        }
+
+        // Strict custom tiebreaker logic array sorting: Stage -> Wins -> GD -> Lowest Odds First
+        const sorted = data.sort((a, b) => {
+          if (b.stage !== a.stage) return b.stage - a.stage;
+          if (b.wins !== a.wins) return b.wins - a.wins;
+          if (b.gd !== a.gd) return b.gd - a.gd;
+          return a.odds - b.odds; // Lowest odds number ranks higher
+        });
+
+        const tbody = document.getElementById('leaderboard-rows');
+        tbody.innerHTML = '';
+
+        sorted.forEach((team, index) => {
+          const pick = index + 1;
+          const isEliminated = team.eliminated;
+          
+          const row = document.createElement('tr');
+          row.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
+          
+          let pickColor = 'text-amber-500';
+          if (pick === 1) pickColor = 'text-emerald-400 font-black';
+          if (pick === 12) pickColor = 'text-rose-500 font-black';
+
+          row.innerHTML = `
+            <td class="py-4 px-6 text-center font-black text-base ${pickColor}">#${pick}</td>
+            <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm">${team.manager}</td>
+            <td class="py-4 px-4 text-neutral-200 text-sm">
+              <span class="text-xl mr-2 inline-block align-middle">${team.flag}</span>
+              <span class="align-middle uppercase tracking-wider text-xs font-bold">${team.country}</span>
+            </td>
+            <td class="py-4 px-4 text-center">
+              <span class="text-[10px] px-2.5 py-1 rounded-full font-black uppercase bg-neutral-950 border border-neutral-800 ${isEliminated ? 'text-neutral-500 border-neutral-900/50' : 'text-amber-400 border-amber-500/20'}">
+                ${STAGES[team.stage] || 'Group Stage'} ${isEliminated ? '❌' : '🏁'}
+              </span>
+            </td>
+            <td class="py-4 px-4 text-center font-mono font-bold text-sm">${team.wins}</td>
+            <td class="py-4 px-4 text-center font-mono font-bold text-sm ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</td>
+            <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(2)}</td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('board-wrapper').classList.remove('hidden');
+
+      } catch (err) {
+        console.error("Runtime error layout:", err);
+        document.getElementById('loading').innerText = "An unexpected error occurred loading standings.";
       }
+    }
 
-      // Strict custom tiebreaker logic array sorting: Stage -> Wins -> GD -> Lowest Odds First
-      const sorted = data.sort((a, b) => {
-        if (b.stage !== a.stage) return b.stage - a.stage;
-        if (b.wins !== a.wins) return b.wins - a.wins;
-        if (b.gd !== a.gd) return b.gd - a.gd;
-        return a.odds - b.odds; // Lowest odds number ranks higher
-      });
-
-      const tbody = document.getElementById('leaderboard-rows');
-      tbody.innerHTML = '';
-
-      sorted.forEach((team, index) => {
-        const pick = index + 1;
-        const isEliminated = team.eliminated;
-        
-        const row = document.createElement('tr');
-        row.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
-        
-        let pickColor = 'text-amber-500';
-        if (pick === 1) pickColor = 'text-emerald-400 font-black';
-        if (pick === 12) pickColor = 'text-rose-500 font-black';
-
-        row.innerHTML = `
-          <td class="py-4 px-6 text-center font-black text-base ${pickColor}">#${pick}</td>
-          <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm">${team.manager}</td>
-          <td class="py-4 px-4 text-neutral-200 text-sm">
-            <span class="text-xl mr-2 inline-block align-middle">${team.flag}</span>
-            <span class="align-middle uppercase tracking-wider text-xs font-bold">${team.country}</span>
-          </td>
-          <td class="py-4 px-4 text-center">
+    loadLeaderboard();
+  </script>
+</body>
+</html>
