@@ -14,7 +14,7 @@
       <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500">World Cup Draft Decider</h1>
       <p class="text-neutral-400 text-[10px] md:text-xs font-bold tracking-widest uppercase mt-0.5">Last Year's Standings. This Year's Destiny.</p>
     </div>
-    <div id="sync-status" class="hidden text-neutral-500 font-mono text-[10px] md:text-[11px] bg-neutral-900 border border-neutral-800/80 rounded-full px-3 py-1 self-center md:self-auto shadow-inner">
+    <div id="sync-status" class="hidden text-neutral-500 font-mono text-[10px] md:text-[11px] bg-neutral-900 border border-neutral-800/80 rounded-full px-3 py-1.5 self-center md:self-auto shadow-inner">
       Synced: <span id="last-ago" class="text-neutral-300 font-bold">...</span> • 
       Next: <span id="next-countdown" class="text-amber-500 font-bold">...</span>
     </div>
@@ -52,7 +52,7 @@
   </main>
 
   <script>
-    // 1. INPUT YOUR PUBLIC CREDENTIALS HERE
+    // 1. PROJECT CREDENTIALS
     const SUPABASE_URL = "https://grcdedmxdfdjgaextaru.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_qAPRKnLO0JUSBG1iwYm0Pw_Ehfr9M8Z";
     
@@ -76,13 +76,21 @@
 
       let lastText = diffMins < 1 ? "just now" : diffMins < 60 ? `${diffMins}m ago` : `${diffHours}h ago`;
       
-      const twelveHoursMs = 12 * 60 * 60 * 1000;
-      const timeRemainingMs = (lastUpdate.getTime() + twelveHoursMs) - now.getTime();
+      // FIXED: Countdown calculation accurately tracking against your 6-hour interval
+      const sixHoursMs = 6 * 60 * 60 * 1000;
+      const timeRemainingMs = (lastUpdate.getTime() + sixHoursMs) - now.getTime();
 
       let nextText = "Imminent";
       if (timeRemainingMs > 0) {
         const remMinsTotal = Math.floor(timeRemainingMs / 1000 / 60);
-        nextText = `in ${Math.floor(remMinsTotal / 60)}h ${remMinsTotal % 60}m`;
+        const remainingHours = Math.floor(remMinsTotal / 60);
+        const remainingMins = remMinsTotal % 60;
+        
+        if (remainingHours > 0) {
+          nextText = `in ~${remainingHours}h ${remainingMins}m`;
+        } else {
+          nextText = `in ~${remainingMins}m`;
+        }
       }
 
       document.getElementById('last-ago').innerText = lastText;
@@ -142,7 +150,7 @@
           `;
           desktopBody.appendChild(dRow);
 
-          // --- BUILD MOBILE ROW (Optimized Card Hybrid Layout) ---
+          // --- BUILD MOBILE ROW ---
           const mCard = document.createElement('div');
           mCard.className = `p-4 flex items-center justify-between gap-2 ${isEliminated ? 'opacity-35 bg-neutral-950/30' : 'bg-neutral-900'}`;
           mCard.innerHTML = `
@@ -162,32 +170,4 @@
             
             <div class="flex items-center gap-4 font-mono shrink-0">
               <div class="text-center">
-                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">W</span>
-                <span class="text-xs font-bold text-neutral-200">${team.wins}</span>
-              </div>
-              <div class="text-center border-l border-neutral-800 pl-3">
-                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">GD</span>
-                <span class="text-xs font-black ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
-              </div>
-              <div class="text-center border-l border-neutral-800 pl-3">
-                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">Odds</span>
-                <span class="text-[11px] text-neutral-400 font-medium">${Number(team.odds).toFixed(1)}</span>
-              </div>
-            </div>
-          `;
-          mobileContainer.appendChild(mCard);
-        });
-
-        document.getElementById('loading').classList.add('hidden');
-        document.getElementById('board-wrapper').classList.remove('hidden');
-
-      } catch (err) {
-        console.error(err);
-        document.getElementById('loading').innerText = "An unexpected error occurred.";
-      }
-    }
-
-    loadLeaderboard();
-  </script>
-</body>
-</html>
+                <span class="block text-
