@@ -76,13 +76,15 @@
 
       let lastText = diffMins < 1 ? "just now" : diffMins < 60 ? `${diffMins}m ago` : `${diffHours}h ago`;
       
-      const twelveHoursMs = 12 * 60 * 60 * 1000;
-      const timeRemainingMs = (lastUpdate.getTime() + twelveHoursMs) - now.getTime();
+      const oneHourMs = 1 * 60 * 60 * 1000;
+      const timeRemainingMs = (lastUpdate.getTime() + oneHourMs) - now.getTime();
 
       let nextText = "Imminent";
       if (timeRemainingMs > 0) {
         const remMinsTotal = Math.floor(timeRemainingMs / 1000 / 60);
-        nextText = `in ${Math.floor(remMinsTotal / 60)}h ${remMinsTotal % 60}m`;
+        nextText = `in ~${remainingHours}h ${remainingMins}m`;
+      } else {
+        nextText = `in ~${remainingMins}m`;
       }
 
       document.getElementById('last-ago').innerText = lastText;
