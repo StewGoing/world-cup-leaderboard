@@ -24,9 +24,10 @@
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-neutral-950 text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-800">
-              <th class="py-4 px-6 text-left w-36">Projected Pick</th>
+              <th class="py-4 px-6 text-center w-20">Pick</th>
               <th class="py-4 px-4">Manager</th>
               <th class="py-4 px-4">Country Allocation</th>
+              <th class="py-4 px-4 text-center">Tournament Stage</th>
               <th class="py-4 px-4 text-center">Wins</th>
               <th class="py-4 px-4 text-center">GD</th>
               <th class="py-4 px-4 text-center">Odds</th>
@@ -45,6 +46,16 @@
     const SUPABASE_ANON_KEY = "sb_publishable_qAPRKnLO0JUSBG1iwYm0Pw_Ehfr9M8Z";
     
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const STAGES = {
+      1: "Group Stage",
+      2: "Round of 32",
+      3: "Round of 16",
+      4: "Quarter-Finals",
+      5: "Semi-Finals",
+      6: "Runner Up / 3rd",
+      7: "Champion"
+    };
 
     async function loadLeaderboard() {
       const { data, error } = await supabaseClient.from('world_cup_leaderboard').select('*');
@@ -76,24 +87,10 @@
         if (pick === 12) pickColor = 'text-rose-500 font-black';
 
         row.innerHTML = `
-          <td class="py-4 px-6 text-left font-black uppercase tracking-wider text-sm ${pickColor}">Pick #${pick}</td>
+          <td class="py-4 px-6 text-center font-black text-base ${pickColor}">#${pick}</td>
           <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm">${team.manager}</td>
           <td class="py-4 px-4 text-neutral-200 text-sm">
             <span class="text-xl mr-2 inline-block align-middle">${team.flag}</span>
             <span class="align-middle uppercase tracking-wider text-xs font-bold">${team.country}</span>
           </td>
-          <td class="py-4 px-4 text-center font-mono font-bold text-sm">${team.wins}</td>
-          <td class="py-4 px-4 text-center font-mono font-bold text-sm ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</td>
-          <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(2)}</td>
-        `;
-        tbody.appendChild(row);
-      });
-
-      document.getElementById('loading').classList.add('hidden');
-      document.getElementById('board-wrapper').classList.remove('hidden');
-    }
-
-    loadLeaderboard();
-  </script>
-</body>
-</html>
+          <td class="py-4 px-4 text-center">
