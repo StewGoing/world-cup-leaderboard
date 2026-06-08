@@ -7,16 +7,16 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-4 md:p-8">
+<body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
-  <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-5 mb-8 text-center md:text-left flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+  <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 text-center md:text-left flex flex-col md:flex-row md:justify-between md:items-end gap-3">
     <div>
-      <h1 class="text-3xl font-black uppercase tracking-wider text-amber-500">World Cup Draft Decider</h1>
-      <p class="text-neutral-400 text-xs font-bold tracking-widest uppercase mt-1">Last Year's Standings. This Year's Destiny.</p>
+      <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500">World Cup Draft Decider</h1>
+      <p class="text-neutral-400 text-[10px] md:text-xs font-bold tracking-widest uppercase mt-0.5">Last Year's Standings. This Year's Destiny.</p>
     </div>
-    <div id="sync-status" class="hidden text-neutral-500 font-mono text-[11px] bg-neutral-900 border border-neutral-800/80 rounded-full px-4 py-1.5 self-center md:self-auto shadow-inner text-center">
-      Last synced: <span id="last-ago" class="text-neutral-300 font-bold">...</span> • 
-      Next update: <span id="next-countdown" class="text-amber-500 font-bold">...</span>
+    <div id="sync-status" class="hidden text-neutral-500 font-mono text-[10px] md:text-[11px] bg-neutral-900 border border-neutral-800/80 rounded-full px-3 py-1 self-center md:self-auto shadow-inner">
+      Synced: <span id="last-ago" class="text-neutral-300 font-bold">...</span> • 
+      Next: <span id="next-countdown" class="text-amber-500 font-bold">...</span>
     </div>
   </header>
 
@@ -25,8 +25,9 @@
       Connecting to Cloud Standings...
     </div>
 
-    <div id="board-wrapper" class="hidden bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl">
-      <div class="overflow-x-auto">
+    <div id="board-wrapper" class="hidden bg-neutral-900 border border-neutral-800 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl">
+      
+      <div class="hidden md:block overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
             <tr class="bg-neutral-950 text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-800">
@@ -39,10 +40,14 @@
               <th class="py-4 px-4 text-center">Odds</th>
             </tr>
           </thead>
-          <tbody id="leaderboard-rows" class="divide-y divide-neutral-800/60">
+          <tbody id="desktop-rows" class="divide-y divide-neutral-800/60">
             </tbody>
         </table>
       </div>
+
+      <div id="mobile-list" class="block md:hidden divide-y divide-neutral-800/60 bg-neutral-900">
+        </div>
+
     </div>
   </main>
 
@@ -54,48 +59,30 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const STAGES = {
-      1: "Group Stage",
-      2: "Round of 32",
-      3: "Round of 16",
-      4: "Quarter-Finals",
-      5: "Semi-Finals",
-      6: "Runner Up / 3rd",
+      1: "Group",
+      2: "R32",
+      3: "R16",
+      4: "Quarters",
+      5: "Semis",
+      6: "Runner Up",
       7: "Champion"
     };
 
-    // Computes the absolute text for relative time feeds
     function calculateTimeDelta(lastUpdatedString) {
       const lastUpdate = new Date(lastUpdatedString);
       const now = new Date();
-      
-      const diffMs = now - lastUpdate;
-      const diffMins = Math.floor(diffMs / 1000 / 60);
+      const diffMins = Math.floor((now - lastUpdate) / 1000 / 60);
       const diffHours = Math.floor(diffMins / 60);
 
-      // 1. Format Last Updated Text
-      let lastText = "";
-      if (diffMins < 1) lastText = "just now";
-      else if (diffMins < 60) lastText = `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
-      else lastText = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-
-      // 2. Format Next Scheduled Sync Text (Based on our 12 hour cron schedule)
+      let lastText = diffMins < 1 ? "just now" : diffMins < 60 ? `${diffMins}m ago` : `${diffHours}h ago`;
+      
       const twelveHoursMs = 12 * 60 * 60 * 1000;
-      const nextUpdateMs = lastUpdate.getTime() + twelveHoursMs;
-      const timeRemainingMs = nextUpdateMs - now.getTime();
+      const timeRemainingMs = (lastUpdate.getTime() + twelveHoursMs) - now.getTime();
 
-      let nextText = "";
-      if (timeRemainingMs <= 0) {
-        nextText = "Imminent";
-      } else {
-        const remainingMinsTotal = Math.floor(timeRemainingMs / 1000 / 60);
-        const remainingHours = Math.floor(remainingMinsTotal / 60);
-        const remainingMins = remainingMinsTotal % 60;
-        
-        if (remainingHours > 0) {
-          nextText = `in ~${remainingHours}h ${remainingMins}m`;
-        } else {
-          nextText = `in ~${remainingMins}m`;
-        }
+      let nextText = "Imminent";
+      if (timeRemainingMs > 0) {
+        const remMinsTotal = Math.floor(timeRemainingMs / 1000 / 60);
+        nextText = `in ${Math.floor(remMinsTotal / 60)}h ${remMinsTotal % 60}m`;
       }
 
       document.getElementById('last-ago').innerText = lastText;
@@ -106,19 +93,14 @@
     async function loadLeaderboard() {
       try {
         const { data, error } = await supabaseClient.from('world_cup_leaderboard').select('*');
-        
         if (error) {
-          console.error(error);
           document.getElementById('loading').innerText = "Database connection error.";
           return;
         }
 
-        // Use timestamps directly from rows to compute sync intervals
-        if (data.length > 0 && data[0].updated_at) {
-          calculateTimeDelta(data[0].updated_at);
-        }
+        if (data.length > 0 && data[0].updated_at) calculateTimeDelta(data[0].updated_at);
 
-        // Strict custom tiebreaker sorting logic
+        // Strict Tiebreaker Sorting: Stage -> Wins -> GD -> Lowest Odds First
         const sorted = data.sort((a, b) => {
           if (b.stage !== a.stage) return b.stage - a.stage;
           if (b.wins !== a.wins) return b.wins - a.wins;
@@ -126,21 +108,23 @@
           return a.odds - b.odds;
         });
 
-        const tbody = document.getElementById('leaderboard-rows');
-        tbody.innerHTML = '';
+        const desktopBody = document.getElementById('desktop-rows');
+        const mobileContainer = document.getElementById('mobile-list');
+        desktopBody.innerHTML = '';
+        mobileContainer.innerHTML = '';
 
         sorted.forEach((team, index) => {
           const pick = index + 1;
           const isEliminated = team.eliminated;
           
-          const row = document.createElement('tr');
-          row.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
-          
           let pickColor = 'text-amber-500';
           if (pick === 1) pickColor = 'text-emerald-400 font-black';
           if (pick === 12) pickColor = 'text-rose-500 font-black';
 
-          row.innerHTML = `
+          // --- BUILD DESKTOP ROW ---
+          const dRow = document.createElement('tr');
+          dRow.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
+          dRow.innerHTML = `
             <td class="py-4 px-6 text-center font-black text-base ${pickColor}">#${pick}</td>
             <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm">${team.manager}</td>
             <td class="py-4 px-4 text-neutral-200 text-sm">
@@ -148,15 +132,50 @@
               <span class="align-middle uppercase tracking-wider text-xs font-bold">${team.country}</span>
             </td>
             <td class="py-4 px-4 text-center">
-              <span class="text-[10px] px-2.5 py-1 rounded-full font-black uppercase bg-neutral-950 border border-neutral-800 ${isEliminated ? 'text-neutral-500 border-neutral-900/50' : 'text-amber-400 border-amber-500/20'}">
-                ${STAGES[team.stage] || 'Group Stage'} ${isEliminated ? '❌' : '🏁'}
+              <span class="text-[10px] px-2.5 py-1 rounded-full font-black uppercase bg-neutral-950 border border-neutral-800 ${isEliminated ? 'text-neutral-500' : 'text-amber-400 border-amber-500/20'}">
+                ${STAGES[team.stage]} ${isEliminated ? '❌' : '🏁'}
               </span>
             </td>
             <td class="py-4 px-4 text-center font-mono font-bold text-sm">${team.wins}</td>
             <td class="py-4 px-4 text-center font-mono font-bold text-sm ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</td>
             <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(2)}</td>
           `;
-          tbody.appendChild(row);
+          desktopBody.appendChild(dRow);
+
+          // --- BUILD MOBILE ROW (Optimized Card Hybrid Layout) ---
+          const mCard = document.createElement('div');
+          mCard.className = `p-4 flex items-center justify-between gap-2 ${isEliminated ? 'opacity-35 bg-neutral-950/30' : 'bg-neutral-900'}`;
+          mCard.innerHTML = `
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="text-base font-black w-9 h-9 rounded-lg bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner ${pickColor}">
+                #${pick}
+              </div>
+              <div class="min-w-0">
+                <p class="font-extrabold text-white tracking-wide text-sm truncate uppercase">${team.manager}</p>
+                <p class="text-neutral-400 text-xs flex items-center gap-1.5 mt-0.5 font-medium">
+                  <span>${team.flag}</span>
+                  <span class="truncate tracking-wider text-[11px] font-bold uppercase">${team.country}</span>
+                  <span class="text-[9px] px-1.5 py-0.2 bg-neutral-950 rounded font-black text-neutral-500">${STAGES[team.stage]}${isEliminated ? '❌' : ''}</span>
+                </p>
+              </div>
+            </div>
+            
+            <div class="flex items-center gap-4 font-mono shrink-0">
+              <div class="text-center">
+                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">W</span>
+                <span class="text-xs font-bold text-neutral-200">${team.wins}</span>
+              </div>
+              <div class="text-center border-l border-neutral-800 pl-3">
+                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">GD</span>
+                <span class="text-xs font-black ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
+              </div>
+              <div class="text-center border-l border-neutral-800 pl-3">
+                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">Odds</span>
+                <span class="text-[11px] text-neutral-400 font-medium">${Number(team.odds).toFixed(1)}</span>
+              </div>
+            </div>
+          `;
+          mobileContainer.appendChild(mCard);
         });
 
         document.getElementById('loading').classList.add('hidden');
@@ -164,7 +183,7 @@
 
       } catch (err) {
         console.error(err);
-        document.getElementById('loading').innerText = "An unexpected error occurred loading standings.";
+        document.getElementById('loading').innerText = "An unexpected error occurred.";
       }
     }
 
