@@ -52,10 +52,16 @@
   </main>
 
   <script>
-    // 1. PROJECT CREDENTIALS
+    // 1. INPUT YOUR COPIED PROJECT CREDENTIALS HERE
     const SUPABASE_URL = "https://grcdedmxdfdjgaextaru.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_qAPRKnLO0JUSBG1iwYm0Pw_Ehfr9M8Z";
-    
+    const SUPABASE_ANON_KEY = "sb_publishable_qAPRKnLO0JUSBG1iwYm0Pw_Ehfr9M8Z"; 
+
+    // Safety check to alert you visually if the credential keys are broken
+    if (SUPABASE_ANON_KEY.includes("YOUR_FULL") || SUPABASE_ANON_KEY.length < 40) {
+      document.getElementById('loading').innerHTML = `<span class="text-rose-500 font-bold">⚠️ CRITICAL TYPO DETECTED:<br><span class="text-neutral-400 text-xs font-mono lowercase tracking-normal">The copied anon public key on line 49 is broken, truncated, or missing. Update it in your index.html script to unlock the leaderboard!</span></span>`;
+      document.getElementById('loading').classList.remove('animate-pulse');
+    }
+
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const STAGES = {
@@ -76,7 +82,6 @@
 
       let lastText = diffMins < 1 ? "just now" : diffMins < 60 ? `${diffMins}m ago` : `${diffHours}h ago`;
       
-      // FIXED: Countdown calculation accurately tracking against your 6-hour interval
       const sixHoursMs = 6 * 60 * 60 * 1000;
       const timeRemainingMs = (lastUpdate.getTime() + sixHoursMs) - now.getTime();
 
@@ -102,7 +107,7 @@
       try {
         const { data, error } = await supabaseClient.from('world_cup_leaderboard').select('*');
         if (error) {
-          document.getElementById('loading').innerText = "Database connection error.";
+          document.getElementById('loading').innerText = "Database connection error details: " + error.message;
           return;
         }
 
@@ -170,4 +175,32 @@
             
             <div class="flex items-center gap-4 font-mono shrink-0">
               <div class="text-center">
-                <span class="block text-
+                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">W</span>
+                <span class="text-xs font-bold text-neutral-200">${team.wins}</span>
+              </div>
+              <div class="text-center border-l border-neutral-800 pl-3">
+                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">GD</span>
+                <span class="text-xs font-black ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
+              </div>
+              <div class="text-center border-l border-neutral-800 pl-3">
+                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">Odds</span>
+                <span class="text-[11px] text-neutral-400 font-medium">${Number(team.odds).toFixed(1)}</span>
+              </div>
+            </div>
+          `;
+          mobileContainer.appendChild(mCard);
+        });
+
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('board-wrapper').classList.remove('hidden');
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('loading').innerText = "An unexpected runtime error occurred.";
+      }
+    }
+
+    loadLeaderboard();
+  </script>
+</body>
+</html>
