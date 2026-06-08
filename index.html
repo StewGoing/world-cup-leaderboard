@@ -52,7 +52,7 @@
   </main>
 
   <script>
-    // 1. INPUT YOUR PUBLIC CREDENTIALS HERE
+    // 1. PLACE YOUR PUBLIC PROJECT API KEYS HERE
     const SUPABASE_URL = "https://grcdedmxdfdjgaextaru.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_qAPRKnLO0JUSBG1iwYm0Pw_Ehfr9M8Z";
     
@@ -64,73 +64,3 @@
       3: "R16",
       4: "Quarters",
       5: "Semis",
-      6: "Runner Up",
-      7: "Champion"
-    };
-
-    function calculateTimeDelta(lastUpdatedString) {
-      const lastUpdate = new Date(lastUpdatedString);
-      const now = new Date();
-      const diffMins = Math.floor((now - lastUpdate) / 1000 / 60);
-      const diffHours = Math.floor(diffMins / 60);
-
-      let lastText = diffMins < 1 ? "just now" : diffMins < 60 ? `${diffMins}m ago` : `${diffHours}h ago`;
-      
-      // FIXED: Adjusted countdown calculation for the new 1-hour schedule
-      const oneHourMs = 1 * 60 * 60 * 1000;
-      const timeRemainingMs = (lastUpdate.getTime() + oneHourMs) - now.getTime();
-
-      let nextText = "Imminent";
-      if (timeRemainingMs > 0) {
-        const remMinsTotal = Math.floor(timeRemainingMs / 1000 / 60);
-        const remainingHours = Math.floor(remMinsTotal / 60);
-        const remainingMins = remMinsTotal % 60;
-        
-        if (remainingHours > 0) {
-          nextText = `in ~${remainingHours}h ${remainingMins}m`;
-        } else {
-          nextText = `in ~${remainingMins}m`;
-        }
-      }
-
-      document.getElementById('last-ago').innerText = lastText;
-      document.getElementById('next-countdown').innerText = nextText;
-      document.getElementById('sync-status').classList.remove('hidden');
-    }
-
-    async function loadLeaderboard() {
-      try {
-        const { data, error } = await supabaseClient.from('world_cup_leaderboard').select('*');
-        if (error) {
-          document.getElementById('loading').innerText = "Database connection error.";
-          return;
-        }
-
-        if (data.length > 0 && data[0].updated_at) calculateTimeDelta(data[0].updated_at);
-
-        // Strict Tiebreaker Sorting: Stage -> Wins -> GD -> Lowest Odds First
-        const sorted = data.sort((a, b) => {
-          if (b.stage !== a.stage) return b.stage - a.stage;
-          if (b.wins !== a.wins) return b.wins - a.wins;
-          if (b.gd !== a.gd) return b.gd - a.gd;
-          return a.odds - b.odds;
-        });
-
-        const desktopBody = document.getElementById('desktop-rows');
-        const mobileContainer = document.getElementById('mobile-list');
-        desktopBody.innerHTML = '';
-        mobileContainer.innerHTML = '';
-
-        sorted.forEach((team, index) => {
-          const pick = index + 1;
-          const isEliminated = team.eliminated;
-          
-          let pickColor = 'text-amber-500';
-          if (pick === 1) pickColor = 'text-emerald-400 font-black';
-          if (pick === 12) pickColor = 'text-rose-500 font-black';
-
-          // --- BUILD DESKTOP ROW ---
-          const dRow = document.createElement('tr');
-          dRow.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
-          dRow.innerHTML = `
-            <td class="py-4 px-6 text-center
