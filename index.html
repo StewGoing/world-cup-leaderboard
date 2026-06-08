@@ -9,9 +9,15 @@
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-4 md:p-8">
 
-  <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-6 mb-8 text-center md:text-left">
-    <h1 class="text-3xl font-black uppercase tracking-wider text-amber-500">World Cup Draft Decider</h1>
-    <p class="text-neutral-400 text-xs font-bold tracking-widest uppercase mt-1">Last Year's Standings. This Year's Destiny.</p>
+  <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-5 mb-8 text-center md:text-left flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+    <div>
+      <h1 class="text-3xl font-black uppercase tracking-wider text-amber-500">World Cup Draft Decider</h1>
+      <p class="text-neutral-400 text-xs font-bold tracking-widest uppercase mt-1">Last Year's Standings. This Year's Destiny.</p>
+    </div>
+    <div id="sync-status" class="hidden text-neutral-500 font-mono text-[11px] bg-neutral-900 border border-neutral-800/80 rounded-full px-4 py-1.5 self-center md:self-auto shadow-inner text-center">
+      Last synced: <span id="last-ago" class="text-neutral-300 font-bold">...</span> • 
+      Next update: <span id="next-countdown" class="text-amber-500 font-bold">...</span>
+    </div>
   </header>
 
   <main class="max-w-5xl mx-auto">
@@ -45,7 +51,6 @@
     const SUPABASE_URL = "https://grcdedmxdfdjgaextaru.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_qAPRKnLO0JUSBG1iwYm0Pw_Ehfr9M8Z";
     
-    // Correct CDN Initialization syntax
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const STAGES = {
@@ -58,6 +63,46 @@
       7: "Champion"
     };
 
+    // Computes the absolute text for relative time feeds
+    function calculateTimeDelta(lastUpdatedString) {
+      const lastUpdate = new Date(lastUpdatedString);
+      const now = new Date();
+      
+      const diffMs = now - lastUpdate;
+      const diffMins = Math.floor(diffMs / 1000 / 60);
+      const diffHours = Math.floor(diffMins / 60);
+
+      // 1. Format Last Updated Text
+      let lastText = "";
+      if (diffMins < 1) lastText = "just now";
+      else if (diffMins < 60) lastText = `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+      else lastText = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+
+      // 2. Format Next Scheduled Sync Text (Based on our 12 hour cron schedule)
+      const twelveHoursMs = 12 * 60 * 60 * 1000;
+      const nextUpdateMs = lastUpdate.getTime() + twelveHoursMs;
+      const timeRemainingMs = nextUpdateMs - now.getTime();
+
+      let nextText = "";
+      if (timeRemainingMs <= 0) {
+        nextText = "Imminent";
+      } else {
+        const remainingMinsTotal = Math.floor(timeRemainingMs / 1000 / 60);
+        const remainingHours = Math.floor(remainingMinsTotal / 60);
+        const remainingMins = remainingMinsTotal % 60;
+        
+        if (remainingHours > 0) {
+          nextText = `in ~${remainingHours}h ${remainingMins}m`;
+        } else {
+          nextText = `in ~${remainingMins}m`;
+        }
+      }
+
+      document.getElementById('last-ago').innerText = lastText;
+      document.getElementById('next-countdown').innerText = nextText;
+      document.getElementById('sync-status').classList.remove('hidden');
+    }
+
     async function loadLeaderboard() {
       try {
         const { data, error } = await supabaseClient.from('world_cup_leaderboard').select('*');
@@ -68,12 +113,17 @@
           return;
         }
 
-        // Strict custom tiebreaker logic array sorting: Stage -> Wins -> GD -> Lowest Odds First
+        // Use timestamps directly from rows to compute sync intervals
+        if (data.length > 0 && data[0].updated_at) {
+          calculateTimeDelta(data[0].updated_at);
+        }
+
+        // Strict custom tiebreaker sorting logic
         const sorted = data.sort((a, b) => {
           if (b.stage !== a.stage) return b.stage - a.stage;
           if (b.wins !== a.wins) return b.wins - a.wins;
           if (b.gd !== a.gd) return b.gd - a.gd;
-          return a.odds - b.odds; // Lowest odds number ranks higher
+          return a.odds - b.odds;
         });
 
         const tbody = document.getElementById('leaderboard-rows');
@@ -113,7 +163,7 @@
         document.getElementById('board-wrapper').classList.remove('hidden');
 
       } catch (err) {
-        console.error("Runtime error layout:", err);
+        console.error(err);
         document.getElementById('loading').innerText = "An unexpected error occurred loading standings.";
       }
     }
