@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { XMLParser } from 'fast-xml-parser';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45,30 +44,46 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// Scrapes real media articles anonymously straight from Google News 
+// Custom zero-dependency regex parser to bypass npm installation issues
 async function fetchGoogleNewsHeadlines() {
   try {
-    // Encodes 'FIFA World Cup' search criteria securely into Google's open XML channel
     const res = await fetch('https://news.google.com/rss/search?q=FIFA+World+Cup&hl=en-US&gl=US&ceid=US:en');
     const xmlText = await res.text();
     
-    const parser = new XMLParser();
-    const jsonObj = parser.parse(xmlText);
-    const items = jsonObj.rss?.channel?.item || [];
+    // Uses regex to find content inside <title> tags cleanly
+    const titleRegex = /<title>(.*?)<\/title>/g;
+    const headlines = [];
+    let match;
     
-    // Grabs the top 3 trending publisher items 
-    const articles = Array.isArray(items) ? items.slice(0, 3) : [items];
-    
-    return articles.map(a => {
-      let title = a.title || '';
-      // Cleans off trailing publisher watermarks (e.g., "- ESPN" or "- BBC Sport")
+    while ((match = titleRegex.exec(xmlText)) !== null) {
+      let title = match[1];
+      
+      // Skip the main RSS feed title channel header
+      if (title.toLowerCase().includes('google news') || title.toLowerCase() === 'fifa world cup') {
+        continue;
+      }
+      
+      // Decode basic XML entities common in headlines
+      title = title.replace(/&amp;/g, '&')
+                   .replace(/&quot;/g, '"')
+                   .replace(/&apos;/g, "'")
+                   .replace(/&gt;/g, '>')
+                   .replace(/&lt;/g, '<');
+      
+      // Clean off trailing publisher watermarks
       if (title.includes(' - ')) {
         title = title.substring(0, title.lastIndexOf(' - '));
       }
-      return `📰 NEWS: ${title.trim()}`;
-    });
+      
+      headlines.push(`📰 NEWS: ${title.trim()}`);
+      
+      // Restrict collection to the top 3 items to keep horizontal marquee fast
+      if (headlines.length >= 3) break;
+    }
+    
+    return headlines;
   } catch (err) {
-    console.log("⚠️ Google News Scraper timed out or failed. Falling back to core messages.");
+    console.log("⚠️ Native Regex News Scraper failed. Falling back to default messages.");
     return [];
   }
 }
@@ -140,7 +155,6 @@ async function sync() {
     const todaysMatches = allMatches.filter(m => m.utcDate.startsWith(todayStr));
     const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE');
 
-    // Always prioritize active live match scores if games are currently kicking off
     if (liveMatches.length > 0) {
       liveMatches.forEach(m => {
         const homeTLA = m.homeTeam?.tla || 'TBD';
@@ -158,12 +172,10 @@ async function sync() {
       headlines.push(`📅 TODAY'S SCHEDULE: ${matchScheduleText}`);
     }
 
-    // Hit the Google News Scraper to blend real-time media articles into the rotation
-    console.log("Scraping real-world Google News feeds...");
+    console.log("Scraping real-world Google News feeds natively...");
     const realMediaNews = await fetchGoogleNewsHeadlines();
     realMediaNews.forEach(newsString => headlines.push(newsString));
 
-    // Fallback security check to ensure ticker payload is never blank
     if (headlines.length === 0) {
       headlines.push("Welcome to the World Cup Draft Decider Leaderboard!");
       headlines.push("Expanded 48-team tournament system active. Standings re-index every 60 minutes.");
