@@ -44,15 +44,13 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// Fresh, cleaned-up global news fetcher
+// Streamlined news fetcher that completely cleans out source names and clickbait text
 async function fetchTopWorldCupStories() {
   try {
-    // A clean, natural search query. Google News naturally ranks the most reputable domains 
-    // (BBC, ESPN, Sky, Reuters) at the top for major global sporting events.
-    const targetQuery = '"FIFA World Cup"';
+    // Focus search parameters entirely on main sporting developments while filtering out tax docs
+    const targetQuery = '"FIFA World Cup" -site:gov -site:mil -intitle:tax -intitle:economy';
     const encodedQuery = encodeURIComponent(targetQuery);
     
-    // Scrapes Google News looking at hot topics from the last 24 hours (when:1d)
     const res = await fetch(`https://news.google.com/rss/search?q=${encodedQuery}+when:1d&hl=en-US&gl=US&ceid=US:en`);
     const xmlText = await res.text();
     
@@ -63,36 +61,35 @@ async function fetchTopWorldCupStories() {
     while ((match = titleRegex.exec(xmlText)) !== null) {
       let fullTitle = match[1];
       
-      // Skip the main RSS feed channel title header itself
+      // Skip the main RSS feed descriptor header block
       if (fullTitle.toLowerCase().includes('google news') || fullTitle.toLowerCase() === 'fifa world cup') {
         continue;
       }
 
-      // Clean basic XML text spacing rules
+      // Convert common XML entities to clean plaintext spacing symbols
       fullTitle = fullTitle.replace(/&amp;/g, '&')
                            .replace(/&quot;/g, '"')
                            .replace(/&apos;/g, "'")
                            .replace(/&gt;/g, '>')
                            .replace(/&lt;/g, '<');
       
-      // Dynamically extract the headline and the source (e.g., "Headline Text - BBC Sport")
-      let headlineText = fullTitle;
-      let sourceName = "WORLD CUP NEWS"; // Default fallback label
+      let cleanedHeadline = fullTitle;
 
+      // Clean out trailing source brand components cleanly (e.g. " - BBC Sport")
       if (fullTitle.includes(' - ')) {
-        headlineText = fullTitle.substring(0, fullTitle.lastIndexOf(' - ')).trim();
-        sourceName = fullTitle.substring(fullTitle.lastIndexOf(' - ') + 3).trim().toUpperCase();
+        cleanedHeadline = fullTitle.substring(0, fullTitle.lastIndexOf(' - ')).trim();
       }
       
-      headlines.push(`📰 ${sourceName}: ${headlineText}`);
+      // Push the clean, source-less headline straight into the tracker array
+      headlines.push(`⚽ ${cleanedHeadline}`);
       
-      // Strictly capture the top 3 trending global updates of the day
+      // Enforce a hard cap of exactly 3 relevant main stories
       if (headlines.length >= 3) break;
     }
     
     return headlines;
   } catch (err) {
-    console.log("⚠️ News scraper encountered a temporary error. Using default layout messages.");
+    console.log("⚠️ News scraper encountered an execution timeout. Using core fallbacks.");
     return [];
   }
 }
@@ -156,7 +153,7 @@ async function sync() {
     });
 
     // =========================================================================
-    // CLEAN HYBRID REAL-TIME COMPILATION ENGINE
+    // HIGH-RELEVANCE MINIMALIST REAL-TIME COMPILATION ENGINE
     // =========================================================================
     const headlines = [];
     const todayStr = new Date().toISOString().split('T')[0];
@@ -181,13 +178,12 @@ async function sync() {
       headlines.push(`📅 TODAY'S SCHEDULE: ${matchScheduleText}`);
     }
 
-    console.log("Fetching top trending global stories...");
+    console.log("Fetching top 3 minimalist global stories...");
     const topStories = await fetchTopWorldCupStories();
     topStories.forEach(story => headlines.push(story));
 
     if (headlines.length === 0) {
       headlines.push("Welcome to the World Cup Draft Decider Leaderboard!");
-      headlines.push("Standings re-index automatically every 60 minutes.");
     }
 
     const tickerPayloadString = headlines.join("   •   ");
@@ -262,7 +258,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Cleaned Global News Ticker Sync finished successfully!");
+    console.log("🚀 Minimalist Top-3 Sports Ticker Engine Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
