@@ -9,11 +9,13 @@
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
+  <!-- Header Layout: Centered on Mobile, Left-Aligned on Desktop Screens -->
   <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 flex flex-col md:flex-row md:justify-between items-center md:items-end gap-3 text-center md:text-left">
     <div>
       <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
       <p class="text-neutral-400 text-[10px] md:text-xs font-bold tracking-widest uppercase mt-0.5 block">Last Year's Standings. This Year's Destiny.</p>
     </div>
+    <!-- 60-Minute Timing Indicator Badge -->
     <div id="sync-status" class="hidden text-neutral-500 font-mono text-[10px] md:text-[11px] bg-neutral-900 border border-neutral-800/80 rounded-full px-3 py-1.5 self-center md:self-auto shadow-inner">
       Synced: <span id="last-ago" class="text-neutral-300 font-bold">...</span> • 
       Next: <span id="next-countdown" class="text-amber-500 font-bold">...</span>
@@ -25,9 +27,11 @@
       Connecting to Cloud Standings...
     </div>
 
+    <!-- Main Table Container Layout -->
     <div id="board-wrapper" class="hidden space-y-6">
       <div class="bg-neutral-900 border border-neutral-800 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl">
         
+        <!-- DESKTOP SCREEN GRIDS -->
         <div class="hidden md:block overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
@@ -36,7 +40,8 @@
                 <th class="py-4 px-4">Manager</th>
                 <th class="py-4 px-4">Country Allocation</th>
                 <th class="py-4 px-4 text-center">Stage</th>
-                <th class="py-4 px-5 text-center">W/P</th> <th class="py-4 px-4 text-center">GD</th>
+                <th class="py-4 px-5 text-center">W/P</th>
+                <th class="py-4 px-4 text-center">GD</th>
                 <th class="py-4 px-4 text-center">Odds</th>
                 <th class="py-4 px-5 text-left">Next Match (AEST)</th> 
               </tr>
@@ -45,9 +50,11 @@
           </table>
         </div>
 
+        <!-- RESPONSIVE MOBILE CELL LIST STACKS -->
         <div id="mobile-list" class="block md:hidden divide-y divide-neutral-800/60 bg-neutral-900"></div>
       </div>
 
+      <!-- BOTTOM RULE LEGEND BOX WITH INTEGRATED ACRONYM DEFINITIONS -->
       <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 md:p-6 shadow-xl space-y-5">
         <div>
           <h3 class="text-xs uppercase font-black text-amber-500 tracking-widest border-b border-neutral-800 pb-2 mb-3">Tournament Rules & Tiebreaker Hierarchy</h3>
@@ -60,6 +67,7 @@
           </div>
         </div>
 
+        <!-- INTEGRATED ACRONYM GLOSSARY TRAY -->
         <div class="border-t border-neutral-800/80 pt-4">
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
@@ -78,6 +86,7 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const STAGES = { 1: "Group", 2: "R32", 3: "R16", 4: "Quarters", 5: "Semis", 6: "Runner Up", 7: "Champion" };
 
+    // Formats timeline deltas for automated sync indicators
     function calculateTimeDelta(lastUpdatedString) {
       const lastUpdate = new Date(lastUpdatedString);
       const now = new Date();
@@ -107,6 +116,7 @@
 
         if (data.length > 0 && data[0].updated_at) calculateTimeDelta(data[0].updated_at);
 
+        // Standardized multi-tier tiebreaker sort logic
         const sorted = data.sort((a, b) => {
           if (b.stage !== a.stage) return b.stage - a.stage;
           if (b.wins !== a.wins) return b.wins - a.wins;
@@ -168,6 +178,7 @@
                 </div>
               </div>
               
+              <!-- Core Data Statistics Display Grid (Mobile Layout) -->
               <div class="flex items-center gap-3 font-mono shrink-0">
                 <div class="text-center w-10">
                   <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">W/P</span>
@@ -183,9 +194,11 @@
                 </div>
               </div>
             </div>
+            
+            <!-- FIXED Mobile Match Footer Bar: Restored to full-width text container processing -->
             <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex justify-between items-center text-[10px] font-mono">
-              <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider">Next Match (AEST):</span>
-              <span class="text-amber-500 font-semibold truncate max-w-[210px]" title="${matchString}">${matchString}</span>
+              <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider shrink-0">Next Match (AEST):</span>
+              <span class="text-amber-500 font-semibold text-right max-w-none ml-2 truncate" title="${matchString}">${matchString}</span>
             </div>
           `;
           mobileContainer.appendChild(mCard);
