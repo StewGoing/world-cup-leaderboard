@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { XMLParser } from 'fast-xml-parser';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -9,14 +10,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 function formatToAEST(utcString) {
   if (!utcString) return '';
   const date = new Date(utcString);
-  
   const datePart = date.toLocaleDateString('en-AU', {
     timeZone: 'Australia/Sydney',
     weekday: 'short',
     day: '2-digit',
     month: '2-digit'
   });
-
   const timePart = date.toLocaleTimeString('en-AU', {
     timeZone: 'Australia/Sydney',
     hour: 'numeric',
@@ -27,28 +26,51 @@ function formatToAEST(utcString) {
   return `${datePart}, ${timePart}`;
 }
 
-// Master Weight Calculator for precise sorting hierarchy
 function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) {
   if (!stageString) return 1;
   const stage = stageString.toUpperCase();
-  
   if (stage.includes('GROUP')) return 1;
   if (stage.includes('LAST_32') || stage.includes('ROUND_OF_32')) return 3;
   if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) return 4;
   if (stage.includes('QUARTER')) return 5;
-  
-  if (stage.includes('SEMI')) return 6; // Semis bound
-  
+  if (stage.includes('SEMI')) return 6;
   if (stage.includes('THIRD') || stage.includes('3RD')) {
-    if (matchStatus === 'FINISHED') return isWinner ? 8 : 7; // Locked 3rd or 4th Place
+    if (matchStatus === 'FINISHED') return isWinner ? 8 : 7;
     return 6;
   }
-  
   if (stage.includes('FINAL')) {
-    if (matchStatus === 'FINISHED') return isWinner ? 10 : 9; // Locked Champion or Runner Up
-    return 11; // Active Finalist Contender ("Finals bound")
+    if (matchStatus === 'FINISHED') return isWinner ? 10 : 9;
+    return 11;
   }
   return 1;
+}
+
+// Scrapes real media articles anonymously straight from Google News 
+async function fetchGoogleNewsHeadlines() {
+  try {
+    // Encodes 'FIFA World Cup' search criteria securely into Google's open XML channel
+    const res = await fetch('https://news.google.com/rss/search?q=FIFA+World+Cup&hl=en-US&gl=US&ceid=US:en');
+    const xmlText = await res.text();
+    
+    const parser = new XMLParser();
+    const jsonObj = parser.parse(xmlText);
+    const items = jsonObj.rss?.channel?.item || [];
+    
+    // Grabs the top 3 trending publisher items 
+    const articles = Array.isArray(items) ? items.slice(0, 3) : [items];
+    
+    return articles.map(a => {
+      let title = a.title || '';
+      // Cleans off trailing publisher watermarks (e.g., "- ESPN" or "- BBC Sport")
+      if (title.includes(' - ')) {
+        title = title.substring(0, title.lastIndexOf(' - '));
+      }
+      return `📰 NEWS: ${title.trim()}`;
+    });
+  } catch (err) {
+    console.log("⚠️ Google News Scraper timed out or failed. Falling back to core messages.");
+    return [];
+  }
 }
 
 async function sync() {
@@ -110,7 +132,7 @@ async function sync() {
     });
 
     // =========================================================================
-    // DYNAMIC METADATA NEWS TICKER ENGINE (ANTI-STALE UPGRADE)
+    // HYBRID LIVE SCORES & JOURNALISM HEADLINE COMPILATION ENGINE
     // =========================================================================
     const headlines = [];
     const todayStr = new Date().toISOString().split('T')[0];
@@ -118,8 +140,8 @@ async function sync() {
     const todaysMatches = allMatches.filter(m => m.utcDate.startsWith(todayStr));
     const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE');
 
+    // Always prioritize active live match scores if games are currently kicking off
     if (liveMatches.length > 0) {
-      // 1. LIVE SCORES MODE
       liveMatches.forEach(m => {
         const homeTLA = m.homeTeam?.tla || 'TBD';
         const awayTLA = m.awayTeam?.tla || 'TBD';
@@ -128,40 +150,23 @@ async function sync() {
         headlines.push(`🔥 LIVE NOW: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}`);
       });
     } else if (todaysMatches.length > 0) {
-      // 2. ACTIVE MATCHDAY PREVIEW MODE
       const matchScheduleText = todaysMatches.map(m => {
         const homeTLA = m.homeTeam?.tla || 'TBD';
         const awayTLA = m.awayTeam?.tla || 'TBD';
-        const localTime = new Date(m.utcDate).toLocaleTimeString('en-AU', {
-          timeZone: 'Australia/Sydney',
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        }).toLowerCase().replace(' ', '');
-        return `${homeTLA} vs ${awayTLA} (${localTime})`;
+        return `${homeTLA} vs ${awayTLA}`;
       }).join(' | ');
-      headlines.push(`📅 TODAY'S FIXTURES (AEST): ${matchScheduleText}`);
-    } else {
-      // 3. THE PRE-KICKOFF HYPE GENERATOR (Prevents Stale Feeds)
-      const openingMatch = allMatches.find(m => m.matchday === 1) || allMatches[0];
-      
-      if (openingMatch && openingMatch.utcDate) {
-        const kickOffTime = new Date(openingMatch.utcDate).getTime();
-        const nowTime = new Date().getTime();
-        const timeDeltaMs = kickOffTime - nowTime;
+      headlines.push(`📅 TODAY'S SCHEDULE: ${matchScheduleText}`);
+    }
 
-        if (timeDeltaMs > 0) {
-          const totalMinutesLeft = Math.floor(timeDeltaMs / 1000 / 60);
-          const hoursLeft = Math.floor(totalMinutesLeft / 60);
-          const minsLeft = totalMinutesLeft % 60;
-          headlines.push(`⏳ COUNTDOWN TO WORLD CUP KICKOFF: Exactly ${hoursLeft}h ${minsLeft}m remaining until opening whistle!`);
-        }
-      }
+    // Hit the Google News Scraper to blend real-time media articles into the rotation
+    console.log("Scraping real-world Google News feeds...");
+    const realMediaNews = await fetchGoogleNewsHeadlines();
+    realMediaNews.forEach(newsString => headlines.push(newsString));
 
-      const distinctGroupsCount = groups.length || 12;
-      headlines.push(`📊 TOURNAMENT SYSTEM INTEL: 48 countries mapped across ${distinctGroupsCount} distinct groups.`);
-      headlines.push("🏆 PRE-MATCH RULES BRIEF: The top 2 teams from every single group, alongside the 8 best 3rd-place finishers overall, will surge into the historic Round of 32 brackets.");
-      headlines.push("⚽ TRACKER NOTICE: Ranks will re-index instantly every 60 minutes as goals clear the goalmouths.");
+    // Fallback security check to ensure ticker payload is never blank
+    if (headlines.length === 0) {
+      headlines.push("Welcome to the World Cup Draft Decider Leaderboard!");
+      headlines.push("Expanded 48-team tournament system active. Standings re-index every 60 minutes.");
     }
 
     const tickerPayloadString = headlines.join("   •   ");
@@ -236,7 +241,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Complete Dynamic Placement Engine Sync finished successfully!");
+    console.log("🚀 Complete Live Journalism News Ticker Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
