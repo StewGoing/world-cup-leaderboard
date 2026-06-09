@@ -32,22 +32,25 @@ async function sync() {
     const standingsJson = await standingsRes.json();
     const groups = standingsJson.response[0]?.league?.standings;
 
-    // 2. FETCH BULK UPCOMING FIXTURES DATA (1 Request)
-    console.log("Fetching upcoming fixtures dataset...");
-    const fixturesRes = await fetch('https://v3.football.api-sports.io/fixtures?league=1&season=2026&next=15', {
+    // 2. FETCH BULK FIXTURES VIA TARGETED DATE RANGE (1 Request)
+    // FIXED: Swapped out '&next=15' for a fixed calendar block covering June 2026 matches
+    console.log("Fetching upcoming fixtures dataset via calendar query...");
+    const fixturesRes = await fetch('https://v3.football.api-sports.io/fixtures?league=1&season=2026&from=2026-06-11&to=2026-06-30', {
       headers: { 'x-rapidapi-key': API_FOOTBALL_KEY, 'x-rapidapi-host': 'v3.football.api-sports.io' }
     });
     const fixturesJson = await fixturesRes.json();
     const upcomingFixtures = fixturesJson.response || [];
-      console.log("RAW FIXTURES FROM API:", JSON.stringify(upcomingFixtures, null, 2));
-    // Map through the next 15 fixtures to build an upcoming schedule tracker
+
+    console.log(`RAW API FIXTURES VERIFICATION: Found ${upcomingFixtures.length} matches in scheduled payload.`);
+
+    // Map through the fixtures to build an upcoming schedule tracker
     const nextMatchMap = {};
     upcomingFixtures.forEach(f => {
       const homeTeam = f.teams.home.name;
       const awayTeam = f.teams.away.name;
       const aestTime = formatToAEST(f.fixture.date);
 
-      // If a country doesn't have a next match mapped yet, log this chronological earliest fixture
+      // Only map the absolute earliest fixture chronologically for each country
       if (!nextMatchMap[homeTeam]) {
         nextMatchMap[homeTeam] = `vs ${awayTeam} (${aestTime})`;
       }
@@ -62,7 +65,7 @@ async function sync() {
       const { data: dbTeams, error } = await supabase.from('world_cup_leaderboard').select('*');
       if (error) throw error;
 
-      // FIXED: Inject the live mapped fixtures and synchronization timestamp even while standings remain inactive
+      // Inject the live date-range fixtures into Supabase rows right now
       for (const team of dbTeams) {
         const nextMatchText = nextMatchMap[team.country] || "TBD (Check Group Stage)";
         await supabase.from('world_cup_leaderboard').update({
