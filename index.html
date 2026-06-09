@@ -10,9 +10,22 @@
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
   <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-3 text-left">
-    <div>
-      <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
-      <p class="text-neutral-400 text-[10px] md:text-xs font-bold tracking-widest uppercase mt-0.5 block">Last Year's Standings. This Year's Destiny.</p>
+    <div class="flex flex-row items-end gap-3.5 justify-start">
+      <div class="w-10 h-10 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center justify-center p-1 shrink-0 shadow-md">
+        <div class="grid grid-cols-7 gap-[1px] w-full h-full">
+          <div class="bg-transparent"></div><div class="bg-emerald-700"></div><div class="bg-emerald-700"></div><div class="bg-emerald-700"></div><div class="bg-emerald-700"></div><div class="bg-emerald-700"></div><div class="bg-transparent"></div>
+          <div class="bg-emerald-700"></div><div class="bg-emerald-700"></div><div class="bg-amber-400"></div><div class="bg-amber-400"></div><div class="bg-amber-400"></div><div class="bg-emerald-700"></div><div class="bg-emerald-700"></div>
+          <div class="bg-emerald-700"></div><div class="bg-zinc-800"></div><div class="bg-zinc-400"></div><div class="bg-zinc-400"></div><div class="bg-zinc-400"></div><div class="bg-zinc-800"></div><div class="bg-transparent"></div>
+          <div class="bg-transparent"></div><div class="bg-amber-100"></div><div class="bg-amber-100"></div><div class="bg-neutral-600"></div><div class="bg-amber-100"></div><div class="bg-zinc-700"></div><div class="bg-transparent"></div>
+          <div class="bg-transparent"></div><div class="bg-transparent"></div><div class="bg-neutral-700"></div><div class="bg-neutral-700"></div><div class="bg-neutral-700"></div><div class="bg-transparent"></div><div class="bg-transparent"></div>
+          <div class="bg-transparent"></div><div class="bg-amber-400"></div><div class="bg-emerald-800"></div><div class="bg-amber-400"></div><div class="bg-emerald-800"></div><div class="bg-amber-400"></div><div class="bg-transparent"></div>
+          <div class="bg-emerald-800"></div><div class="bg-emerald-800"></div><div class="bg-emerald-800"></div><div class="bg-emerald-800"></div><div class="bg-emerald-800"></div><div class="bg-emerald-800"></div><div class="bg-emerald-800"></div>
+        </div>
+      </div>
+      <div>
+        <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
+        <p class="text-neutral-400 text-[10px] md:text-xs font-bold tracking-widest uppercase mt-0.5 block">Last Year's Standings. This Year's Destiny.</p>
+      </div>
     </div>
     <div id="sync-status" class="hidden text-neutral-500 font-mono text-[10px] md:text-[11px] bg-neutral-900 border border-neutral-800/80 rounded-full px-3 py-1.5 self-start md:self-auto shadow-inner">
       Synced: <span id="last-ago" class="text-neutral-300 font-bold">...</span> • 
@@ -120,7 +133,7 @@
           if (pick === 1) pickColor = 'text-emerald-400 font-black';
           if (pick === 12) pickColor = 'text-rose-500 font-black';
 
-          // --- DESKTOP RENDER ROW ---
+          // --- DESKTOP RENDER ---
           const dRow = document.createElement('tr');
           dRow.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
           dRow.innerHTML = `
@@ -143,7 +156,7 @@
           `;
           desktopBody.appendChild(dRow);
 
-          // --- MOBILE RENDER CARD ---
+          // --- MOBILE RENDER ---
           const mCard = document.createElement('div');
           mCard.className = `p-4 flex flex-col gap-2.5 ${isEliminated ? 'opacity-35 bg-neutral-950/30' : 'bg-neutral-900'}`;
           mCard.innerHTML = `
@@ -155,4 +168,31 @@
                   <p class="text-neutral-400 text-xs flex items-center gap-1.5 mt-0.5 font-medium">
                     <span>${team.flag}</span>
                     <span class="truncate tracking-wider text-[11px] font-bold uppercase">${team.country}</span>
-                    <span class="text-[9px] px-1.5 py-0.2 bg-neutral-950 rounded font-black
+                    <span class="text-[9px] px-1.5 py-0.2 bg-neutral-950 rounded font-black text-neutral-500">${STAGES[team.stage]}</span>
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center gap-4 font-mono shrink-0">
+                <div class="text-center"><span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">P</span><span class="text-xs text-neutral-400">${playedCount}</span></div>
+                <div class="text-center border-l border-neutral-800 pl-3"><span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">W</span><span class="text-xs font-bold text-neutral-200">${team.wins}</span></div>
+                <div class="text-center border-l border-neutral-800 pl-3"><span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">GD</span><span class="text-xs font-black ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span></div>
+              </div>
+            </div>
+            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex justify-between items-center text-[10px] font-mono">
+              <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider">Next Match (AEST):</span>
+              <span class="text-amber-500 font-semibold truncate max-w-[210px]" title="${matchString}">${matchString}</span>
+            </div>
+          `;
+          mobileContainer.appendChild(mCard);
+        });
+
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('board-wrapper').classList.remove('hidden');
+      } catch (err) {
+        document.getElementById('loading').innerText = "An unexpected interface error occurred.";
+      }
+    }
+    loadLeaderboard();
+  </script>
+</body>
+</html>
