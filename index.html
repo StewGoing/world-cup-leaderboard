@@ -9,13 +9,11 @@
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
-  <!-- Header Layout: Centered on Mobile, Left-Aligned on Desktop Screens -->
   <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 flex flex-col md:flex-row md:justify-between items-center md:items-end gap-3 text-center md:text-left">
     <div>
       <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
       <p class="text-neutral-400 text-[10px] md:text-xs font-bold tracking-widest uppercase mt-0.5 block">Last Year's Standings. This Year's Destiny.</p>
     </div>
-    <!-- 60-Minute Timing Indicator Badge -->
     <div id="sync-status" class="hidden text-neutral-500 font-mono text-[10px] md:text-[11px] bg-neutral-900 border border-neutral-800/80 rounded-full px-3 py-1.5 self-center md:self-auto shadow-inner">
       Synced: <span id="last-ago" class="text-neutral-300 font-bold">...</span> • 
       Next: <span id="next-countdown" class="text-amber-500 font-bold">...</span>
@@ -27,11 +25,9 @@
       Connecting to Cloud Standings...
     </div>
 
-    <!-- Main Table Container Layout -->
     <div id="board-wrapper" class="hidden space-y-6">
       <div class="bg-neutral-900 border border-neutral-800 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl">
         
-        <!-- DESKTOP SCREEN GRIDS -->
         <div class="hidden md:block overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
@@ -50,11 +46,9 @@
           </table>
         </div>
 
-        <!-- RESPONSIVE MOBILE CELL LIST STACKS -->
         <div id="mobile-list" class="block md:hidden divide-y divide-neutral-800/60 bg-neutral-900"></div>
       </div>
 
-      <!-- BOTTOM RULE LEGEND BOX WITH INTEGRATED ACRONYM DEFINITIONS -->
       <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 md:p-6 shadow-xl space-y-5">
         <div>
           <h3 class="text-xs uppercase font-black text-amber-500 tracking-widest border-b border-neutral-800 pb-2 mb-3">Tournament Rules & Tiebreaker Hierarchy</h3>
@@ -67,7 +61,6 @@
           </div>
         </div>
 
-        <!-- INTEGRATED ACRONYM GLOSSARY TRAY -->
         <div class="border-t border-neutral-800/80 pt-4">
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
@@ -84,9 +77,21 @@
     const SUPABASE_ANON_KEY = "sb_publishable_qAPRKnLO0JUSBG1iwYm0Pw_Ehfr9M8Z"; 
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const STAGES = { 1: "Group", 2: "R32", 3: "R16", 4: "Quarters", 5: "Semis", 6: "Runner Up", 7: "Champion" };
+    
+    // Exact mapping for the requested tournament path labels
+    const STAGES = { 
+      1: "Group", 
+      3: "R32", 
+      4: "R16", 
+      5: "Quarters", 
+      6: "Semis bound", 
+      7: "4th Place", 
+      8: "3rd Place", 
+      9: "Runner Up", 
+      10: "Champion",
+      11: "Finals bound"
+    };
 
-    // Formats timeline deltas for automated sync indicators
     function calculateTimeDelta(lastUpdatedString) {
       const lastUpdate = new Date(lastUpdatedString);
       const now = new Date();
@@ -116,7 +121,6 @@
 
         if (data.length > 0 && data[0].updated_at) calculateTimeDelta(data[0].updated_at);
 
-        // Standardized multi-tier tiebreaker sort logic
         const sorted = data.sort((a, b) => {
           if (b.stage !== a.stage) return b.stage - a.stage;
           if (b.wins !== a.wins) return b.wins - a.wins;
@@ -139,6 +143,14 @@
           if (pick === 1) pickColor = 'text-emerald-400 font-black';
           if (pick === 12) pickColor = 'text-rose-500 font-black';
 
+          // Color accents tailored for tournament progression
+          let stageLabelColor = 'text-amber-400 border-amber-500/20';
+          if (team.stage === 10) stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black';
+          if (team.stage === 9) stageLabelColor = 'text-zinc-300 border-zinc-500/20 bg-zinc-900/40';
+          if (team.stage === 8) stageLabelColor = 'text-cyan-400 border-cyan-500/30 bg-cyan-950/40';
+          if (team.stage === 7) stageLabelColor = 'text-orange-400 border-orange-500/20';
+          if (team.stage === 11 || team.stage === 6) stageLabelColor = 'text-purple-400 border-purple-500/30 bg-purple-950/20 animate-pulse';
+
           // --- DESKTOP RENDER ---
           const dRow = document.createElement('tr');
           dRow.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
@@ -150,7 +162,7 @@
               <span class="align-middle uppercase tracking-wider text-xs font-bold">${team.country}</span>
             </td>
             <td class="py-4 px-4 text-center">
-              <span class="text-[10px] px-2.5 py-1 rounded-full font-black uppercase bg-neutral-950 border border-neutral-800 ${isEliminated ? 'text-neutral-500' : 'text-amber-400 border-amber-500/20'}">
+              <span class="text-[10px] px-2.5 py-1 rounded-full font-black uppercase bg-neutral-950 border ${isEliminated ? 'text-neutral-500 border-neutral-800' : stageLabelColor}">
                 ${STAGES[team.stage]} ${isEliminated ? '❌' : '🏁'}
               </span>
             </td>
@@ -173,12 +185,11 @@
                   <div class="text-neutral-400 text-xs flex items-center gap-1.5 mt-0.5 font-medium">
                     <span>${team.flag}</span>
                     <span class="truncate tracking-wider text-[11px] font-bold uppercase text-neutral-200">${team.country}</span>
-                    <span class="text-[9px] px-1.5 py-0.2 bg-neutral-950 rounded font-black text-neutral-500 uppercase">${STAGES[team.stage]}</span>
+                    <span class="text-[9px] px-1.5 py-0.2 bg-neutral-950 rounded font-black uppercase ${isEliminated ? 'text-neutral-500' : stageLabelColor.split(' ')[0]}">${STAGES[team.stage]}</span>
                   </div>
                 </div>
               </div>
               
-              <!-- Core Data Statistics Display Grid (Mobile Layout) -->
               <div class="flex items-center gap-3 font-mono shrink-0">
                 <div class="text-center w-10">
                   <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">W/P</span>
@@ -195,7 +206,6 @@
               </div>
             </div>
             
-            <!-- FIXED Mobile Match Footer Bar: Restored to full-width text container processing -->
             <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex justify-between items-center text-[10px] font-mono">
               <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider shrink-0">Next Match (AEST):</span>
               <span class="text-amber-500 font-semibold text-right max-w-none ml-2 truncate" title="${matchString}">${matchString}</span>
