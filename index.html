@@ -112,3 +112,47 @@
 
         sorted.forEach((team, index) => {
           const pick = index + 1;
+          const isEliminated = team.eliminated;
+          const matchString = team.next_match || 'TBD';
+          const playedCount = team.games_played || 0;
+          
+          let pickColor = 'text-amber-500';
+          if (pick === 1) pickColor = 'text-emerald-400 font-black';
+          if (pick === 12) pickColor = 'text-rose-500 font-black';
+
+          // --- DESKTOP RENDER ROW ---
+          const dRow = document.createElement('tr');
+          dRow.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
+          dRow.innerHTML = `
+            <td class="py-4 px-6 text-center font-black text-base ${pickColor}">#${pick}</td>
+            <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm">${team.manager}</td>
+            <td class="py-4 px-4 text-neutral-200 text-sm">
+              <span class="text-xl mr-2 inline-block align-middle">${team.flag}</span>
+              <span class="align-middle uppercase tracking-wider text-xs font-bold">${team.country}</span>
+            </td>
+            <td class="py-4 px-4 text-center">
+              <span class="text-[10px] px-2.5 py-1 rounded-full font-black uppercase bg-neutral-950 border border-neutral-800 ${isEliminated ? 'text-neutral-500' : 'text-amber-400 border-amber-500/20'}">
+                ${STAGES[team.stage]} ${isEliminated ? '❌' : '🏁'}
+              </span>
+            </td>
+            <td class="py-4 px-3 text-center font-mono text-neutral-400 text-sm">${playedCount}</td>
+            <td class="py-4 px-3 text-center font-mono font-bold text-sm text-neutral-200">${team.wins}</td>
+            <td class="py-4 px-3 text-center font-mono font-bold text-sm ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</td>
+            <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(2)}</td>
+            <td class="py-4 px-5 text-left font-mono text-[11px] text-amber-500/90 font-medium truncate max-w-[240px]" title="${matchString}">${matchString}</td>
+          `;
+          desktopBody.appendChild(dRow);
+
+          // --- MOBILE RENDER CARD ---
+          const mCard = document.createElement('div');
+          mCard.className = `p-4 flex flex-col gap-2.5 ${isEliminated ? 'opacity-35 bg-neutral-950/30' : 'bg-neutral-900'}`;
+          mCard.innerHTML = `
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="text-base font-black w-9 h-9 rounded-lg bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner ${pickColor}">#${pick}</div>
+                <div class="min-w-0">
+                  <p class="font-extrabold text-white tracking-wide text-sm truncate uppercase">${team.manager}</p>
+                  <p class="text-neutral-400 text-xs flex items-center gap-1.5 mt-0.5 font-medium">
+                    <span>${team.flag}</span>
+                    <span class="truncate tracking-wider text-[11px] font-bold uppercase">${team.country}</span>
+                    <span class="text-[9px] px-1.5 py-0.2 bg-neutral-950 rounded font-black
