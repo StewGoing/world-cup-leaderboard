@@ -44,7 +44,7 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// Upgraded Topic-Summary Extraction Engine
+// 1. TOPIC-SUMMARY NEWS ENGINE (Saves only the top 3 macro stories)
 async function fetchTopWorldCupStories() {
   try {
     const targetQuery = '"FIFA World Cup" -site:gov -site:mil -intitle:tax -intitle:economy';
@@ -55,8 +55,6 @@ async function fetchTopWorldCupStories() {
     
     const titleRegex = /<title>(.*?)<\/title>/g;
     const headlines = [];
-    
-    // Track unique core topic subjects to block cluster variations (e.g., stopping multiple "Iran ticket" stories)
     const processedTopics = [];
     let match;
     
@@ -78,10 +76,7 @@ async function fetchTopWorldCupStories() {
         cleanedHeadline = fullTitle.substring(0, fullTitle.lastIndexOf(' - ')).trim();
       }
 
-      // Check if this headline is part of an already captured story cluster
       const lowercaseHeadline = cleanedHeadline.toLowerCase();
-      
-      // Smart Keyword Clustering Rule: If two headlines share significant topic identifiers, skip the second one
       const topicKeywords = ["iran", "referee", "ticket", "injured", "squad", "stadium", "visa", "artan", "messi", "ronaldo"];
       let isDuplicateCluster = false;
 
@@ -94,7 +89,6 @@ async function fetchTopWorldCupStories() {
 
       if (isDuplicateCluster) continue;
 
-      // Log the core keywords of this summary story so subordinate entries are skipped
       topicKeywords.forEach(keyword => {
         if (lowercaseHeadline.includes(keyword)) {
           processedTopics.push(keyword);
@@ -117,7 +111,7 @@ async function sync() {
   try {
     const currentSyncTime = new Date().toISOString();
 
-    // 1. BULK FETCH STANDINGS
+    // FETCH STANDINGS
     console.log("Bulk fetching live standings dataset...");
     const standingsRes = await fetch('https://api.football-data.org/v4/competitions/WC/standings', {
       headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY }
@@ -125,7 +119,7 @@ async function sync() {
     const standingsJson = await standingsRes.json();
     const groups = standingsJson.standings || [];
 
-    // 2. BULK FETCH ALL FIXTURES
+    // FETCH ALL FIXTURES
     console.log("Bulk fetching competition fixtures dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
       headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY }
@@ -133,13 +127,12 @@ async function sync() {
     const fixturesJson = await fixturesRes.json();
     const allMatches = fixturesJson.matches || [];
 
-    console.log(`BULK AUDIT: Successfully fetched ${allMatches.length} global tournament fixtures.`);
-
     const nextMatchMap = {};
     const teamLiveStageMap = {};
     const teamMatchStatusMap = {};
     const matchWinnersSet = new Set();
 
+    // 2. HIGH-VISIBILITY 48-HOUR MATCH BADGE ENGINE
     allMatches.forEach(m => {
       const homeName = m.homeTeam?.name || '';
       const awayName = m.awayTeam?.name || '';
@@ -162,18 +155,28 @@ async function sync() {
       }
 
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
+        const kickoffMs = new Date(m.utcDate).getTime();
+        const currentExecutionMs = new Date().getTime();
+        const msUntilKickoff = kickoffMs - currentExecutionMs;
+        
+        // 48 Hours threshold check
+        const isWithin48Hours = msUntilKickoff > 0 && msUntilKickoff <= 172800000;
+        
+        // Solid inline CSS badge structure
+        const badgeHTML = isWithin48Hours 
+          ? `<span style="background-color: #ffc107; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ NEXT 48H</span> `
+          : "";
+
         if (homeName && !nextMatchMap[homeName]) {
-          nextMatchMap[nextMatchMap[homeName] = `vs ${awayTLA} • ${aestTime}`];
+          nextMatchMap[homeName] = `${badgeHTML}vs ${awayTLA} • ${aestTime}`;
         }
         if (awayName && !nextMatchMap[awayName]) {
-          nextMatchMap[awayName] = `vs ${homeTLA} • ${aestTime}`;
+          nextMatchMap[awayName] = `${badgeHTML}vs ${homeTLA} • ${aestTime}`;
         }
       }
     });
 
-    // =========================================================================
-    // DYNAMIC METADATA NEWS TICKER ENGINE
-    // =========================================================================
+    // MIX LIVE SCORES & CLEAN HEADLINES
     const headlines = [];
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -206,7 +209,6 @@ async function sync() {
     }
 
     const tickerPayloadString = headlines.join("   •   ");
-    // =========================================================================
 
     const apiTeamsMap = {};
     groups.forEach(g => {
@@ -264,7 +266,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Summary-Cluster Engine Sync finished successfully!");
+    console.log("🚀 Complete System Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
