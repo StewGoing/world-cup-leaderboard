@@ -27,6 +27,7 @@ function formatToAEST(utcString) {
   return `${datePart}, ${timePart}`;
 }
 
+// Master Weight Calculator for precise sorting hierarchy
 function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) {
   if (!stageString) return 1;
   const stage = stageString.toUpperCase();
@@ -36,16 +37,16 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) return 4;
   if (stage.includes('QUARTER')) return 5;
   
-  if (stage.includes('SEMI')) return 6;
+  if (stage.includes('SEMI')) return 6; // Semis bound
   
   if (stage.includes('THIRD') || stage.includes('3RD')) {
-    if (matchStatus === 'FINISHED') return isWinner ? 8 : 7;
+    if (matchStatus === 'FINISHED') return isWinner ? 8 : 7; // Locked 3rd or 4th Place
     return 6;
   }
   
   if (stage.includes('FINAL')) {
-    if (matchStatus === 'FINISHED') return isWinner ? 10 : 9;
-    return 11;
+    if (matchStatus === 'FINISHED') return isWinner ? 10 : 9; // Locked Champion or Runner Up
+    return 11; // Active Finalist Contender ("Finals bound")
   }
   return 1;
 }
@@ -76,7 +77,6 @@ async function sync() {
     const teamLiveStageMap = {};
     const teamMatchStatusMap = {};
     const matchWinnersSet = new Set();
-    let liveGamesCount = 0;
 
     allMatches.forEach(m => {
       const homeName = m.homeTeam?.name || '';
@@ -94,10 +94,6 @@ async function sync() {
         teamMatchStatusMap[awayName] = m.status;
       }
 
-      if (m.status === 'IN_PLAY' || m.status === 'LIVE') {
-        liveGamesCount++;
-      }
-
       if (m.status === 'FINISHED') {
         const winner = m.score.winner === 'HOME_TEAM' ? homeName : m.score.winner === 'AWAY_TEAM' ? awayName : null;
         if (winner) matchWinnersSet.add(winner);
@@ -113,19 +109,63 @@ async function sync() {
       }
     });
 
-    // GENERATE INTERACTIVE REAL-TIME TICKER HEADLINES
-    const headlines = [
-      "Welcome to the World Cup Draft Decider Leaderboard!",
-      "FIFA confirms roster selection list: 1,248 player dreams active across 48 nations.",
-      "The tournament is expanding to an historic 104 matches.",
-      "Opening Match tomorrow: Mexico vs South Africa at Azteca Stadium kicks off at 5:00 AM AEST."
-    ];
+    // =========================================================================
+    // DYNAMIC METADATA NEWS TICKER ENGINE (ANTI-STALE UPGRADE)
+    // =========================================================================
+    const headlines = [];
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    if (liveGamesCount > 0) {
-      headlines.unshift(`🔥 LIVE ALERTS ACTIVE: ${liveGamesCount} tournament matches currently running in real-time!`);
+    const todaysMatches = allMatches.filter(m => m.utcDate.startsWith(todayStr));
+    const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE');
+
+    if (liveMatches.length > 0) {
+      // 1. LIVE SCORES MODE
+      liveMatches.forEach(m => {
+        const homeTLA = m.homeTeam?.tla || 'TBD';
+        const awayTLA = m.awayTeam?.tla || 'TBD';
+        const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
+        const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
+        headlines.push(`🔥 LIVE NOW: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}`);
+      });
+    } else if (todaysMatches.length > 0) {
+      // 2. ACTIVE MATCHDAY PREVIEW MODE
+      const matchScheduleText = todaysMatches.map(m => {
+        const homeTLA = m.homeTeam?.tla || 'TBD';
+        const awayTLA = m.awayTeam?.tla || 'TBD';
+        const localTime = new Date(m.utcDate).toLocaleTimeString('en-AU', {
+          timeZone: 'Australia/Sydney',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }).toLowerCase().replace(' ', '');
+        return `${homeTLA} vs ${awayTLA} (${localTime})`;
+      }).join(' | ');
+      headlines.push(`📅 TODAY'S FIXTURES (AEST): ${matchScheduleText}`);
+    } else {
+      // 3. THE PRE-KICKOFF HYPE GENERATOR (Prevents Stale Feeds)
+      const openingMatch = allMatches.find(m => m.matchday === 1) || allMatches[0];
+      
+      if (openingMatch && openingMatch.utcDate) {
+        const kickOffTime = new Date(openingMatch.utcDate).getTime();
+        const nowTime = new Date().getTime();
+        const timeDeltaMs = kickOffTime - nowTime;
+
+        if (timeDeltaMs > 0) {
+          const totalMinutesLeft = Math.floor(timeDeltaMs / 1000 / 60);
+          const hoursLeft = Math.floor(totalMinutesLeft / 60);
+          const minsLeft = totalMinutesLeft % 60;
+          headlines.push(`⏳ COUNTDOWN TO WORLD CUP KICKOFF: Exactly ${hoursLeft}h ${minsLeft}m remaining until opening whistle!`);
+        }
+      }
+
+      const distinctGroupsCount = groups.length || 12;
+      headlines.push(`📊 TOURNAMENT SYSTEM INTEL: 48 countries mapped across ${distinctGroupsCount} distinct groups.`);
+      headlines.push("🏆 PRE-MATCH RULES BRIEF: The top 2 teams from every single group, alongside the 8 best 3rd-place finishers overall, will surge into the historic Round of 32 brackets.");
+      headlines.push("⚽ TRACKER NOTICE: Ranks will re-index instantly every 60 minutes as goals clear the goalmouths.");
     }
 
-    const tickerPayloadString = headlines.join("  •  ");
+    const tickerPayloadString = headlines.join("   •   ");
+    // =========================================================================
 
     const apiTeamsMap = {};
     groups.forEach(g => {
@@ -157,14 +197,13 @@ async function sync() {
     const { data: dbTeams, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
     if (dbError) throw dbError;
 
-    // PRE-KICKOFF INTERFACE ROUTING
     if (groups.length === 0 || Object.keys(apiTeamsMap).length === 0) {
-      console.log("⚠️ Standings empty. Processing pre-kickoff mode...");
+      console.log("⚠️ Standings empty. Processing pre-kickoff fixture mode...");
       for (const team of dbTeams) {
         const nextMatchText = nextMatchMap[team.country] || "TBD (Check Group Stage)";
         await supabase.from('world_cup_leaderboard').update({
           next_match: nextMatchText,
-          notes: tickerPayloadString, // We pass the unified news feed inside the notes slot
+          notes: tickerPayloadString,
           updated_at: currentSyncTime
         }).eq('id', team.id);
       }
@@ -185,7 +224,7 @@ async function sync() {
           games_played: live.played,
           stage: stageWeightNum, 
           next_match: nextMatchText,
-          notes: tickerPayloadString, // Updates ticker array continuously
+          notes: tickerPayloadString,
           updated_at: currentSyncTime
         }).eq('id', team.id);
       } else {
@@ -197,7 +236,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Complete Ticker-Integrated Placement Engine Sync finished successfully!");
+    console.log("🚀 Complete Dynamic Placement Engine Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
