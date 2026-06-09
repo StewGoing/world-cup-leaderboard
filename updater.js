@@ -6,11 +6,10 @@ const FOOTBALL_DATA_API_KEY = process.env.FOOTBALL_DATA_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// Cleanly transforms UTC timestamps into a short, space-saving format with the day of the week
+// Formats UTC timestamps to an ultra-compact layout: 'Thu 11/06, 2:00am'
 function formatToAEST(utcString) {
   const date = new Date(utcString);
   
-  // Formats date to 'Day DD/MM' (e.g., 'Thu 11/06')
   const datePart = date.toLocaleDateString('en-AU', {
     timeZone: 'Australia/Sydney',
     weekday: 'short',
@@ -18,23 +17,21 @@ function formatToAEST(utcString) {
     month: '2-digit'
   });
 
-  // Formats time to 'h:mm am/pm'
   const timePart = date.toLocaleTimeString('en-AU', {
     timeZone: 'Australia/Sydney',
     hour: 'numeric',
     minute: '2-digit',
     hour12: true
-  }).toLowerCase();
+  }).toLowerCase().replace(' ', ''); // Removes inner space to save characters
 
-  // Combines them smoothly into 'Thu 11/06 • 2:00 am'
-  return `${datePart} • ${timePart}`;
+  return `${datePart}, ${timePart}`;
 }
 
 async function sync() {
   try {
     const currentSyncTime = new Date().toISOString();
 
-    // 1. BULK FETCH STANDINGS (Exactly 1 API Request)
+    // 1. BULK FETCH STANDINGS
     console.log("Bulk fetching live standings dataset...");
     const standingsRes = await fetch('https://api.football-data.org/v4/competitions/WC/standings', {
       headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY }
@@ -42,7 +39,7 @@ async function sync() {
     const standingsJson = await standingsRes.json();
     const groups = standingsJson.standings || [];
 
-    // 2. BULK FETCH ALL FIXTURES (Exactly 1 API Request)
+    // 2. BULK FETCH ALL FIXTURES
     console.log("Bulk fetching competition fixtures dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
       headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY }
@@ -52,25 +49,26 @@ async function sync() {
 
     console.log(`BULK AUDIT: Successfully fetched ${allMatches.length} global tournament fixtures.`);
 
-    // Map through the entire competition calendar to find the upcoming games
+    // Map through the competition calendar to build the 3-letter acronym schedule
     const nextMatchMap = {};
     allMatches.forEach(m => {
-      const homeTeam = m.homeTeam.name;
-      const awayTeam = m.awayTeam.name;
+      const homeName = m.homeTeam.name;
+      const homeTLA = m.homeTeam.tla || homeName.substring(0, 3).toUpperCase();
+      const awayName = m.awayTeam.name;
+      const awayTLA = m.awayTeam.tla || awayName.substring(0, 3).toUpperCase();
       const aestTime = formatToAEST(m.utcDate);
 
-      // Status "TIMED" or "SCHEDULED" means the game hasn't kicked off yet
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
-        if (!nextMatchMap[homeTeam]) {
-          nextMatchMap[homeTeam] = `vs ${awayTeam} (${aestTime})`;
+        if (!nextMatchMap[homeName]) {
+          nextMatchMap[homeName] = `vs ${awayTLA} • ${aestTime}`;
         }
-        if (!nextMatchMap[awayTeam]) {
-          nextMatchMap[awayTeam] = `vs ${homeTeam} (${aestTime})`;
+        if (!nextMatchMap[awayName]) {
+          nextMatchMap[awayName] = `vs ${homeTLA} • ${aestTime}`;
         }
       }
     });
 
-    // Extract stats for every single country into an absolute local lookup object
+    // Extract tournament points metrics
     const apiTeamsMap = {};
     groups.forEach(g => {
       if (g.table) {
@@ -85,13 +83,13 @@ async function sync() {
       }
     });
 
-    // Pull your current database standings configuration from Supabase
+    // Pull current database standings from Supabase
     const { data: dbTeams, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
     if (dbError) throw dbError;
 
     // PRE-KICKOFF INTERFACE ROUTING
     if (groups.length === 0 || Object.keys(apiTeamsMap).length === 0) {
-      console.log("⚠️ Standings empty or inactive. Processing in pre-kickoff fixture synchronization mode...");
+      console.log("⚠️ Standings processing in pre-kickoff fixture synchronization mode...");
       
       for (const team of dbTeams) {
         const nextMatchText = nextMatchMap[team.country] || "TBD (Check Group Stage)";
@@ -100,7 +98,7 @@ async function sync() {
           updated_at: currentSyncTime
         }).eq('id', team.id);
       }
-      console.log(`🚀 Pre-Kickoff Sync Success. Localized schedule generated for all ${dbTeams.length} managers.`);
+      console.log(`🚀 Pre-Kickoff Sync Success. Mapped 3-letter schedule values for ${dbTeams.length} managers.`);
       return;
     }
 
@@ -117,9 +115,7 @@ async function sync() {
           next_match: nextMatchText,
           updated_at: currentSyncTime
         }).eq('id', team.id);
-        console.log(`✅ Bulk Sync processing active data for country: ${team.country}`);
       } else {
-        // Fallback placeholder safety step if text matching fails on a team row
         await supabase.from('world_cup_leaderboard').update({
           next_match: nextMatchText,
           updated_at: currentSyncTime
