@@ -15,18 +15,30 @@ async function sync() {
     const json = await res.json();
     const groups = json.response[0]?.league?.standings;
     
-    // SAFETY CATCH: If tournament is not active yet, don't crash. Just simulate zeroed standings for testing!
+    // Create a uniform ISO timestamp for this specific synchronization run
+    const currentSyncTime = new Date().toISOString();
+    
+    // SAFETY CATCH: Pre-Kickoff Mode
     if (!groups) {
       console.log("⚠️ Tournament standings are not active on the API yet (Expected pre-kickoff). Running a connection validation test instead...");
       
       const { data: dbTeams, error } = await supabase.from('world_cup_leaderboard').select('*');
       if (error) throw error;
       
+      // FIXED: Force update the timestamp column so the front-end badge registers the successful sync loop
+      const { error: timeError } = await supabase
+        .from('world_cup_leaderboard')
+        .update({ updated_at: currentSyncTime })
+        .gte('id', 0); // Applies the fresh timestamp globally across rows safely
+        
+      if (timeError) throw timeError;
+      
       console.log(`✅ Connection Test Passed! Successfully reached your Supabase database. Fetched ${dbTeams.length} managers.`);
-      console.log("Everything is configured perfectly. Automation will begin updating live stats as soon as the tournament kicks off on Thursday!");
+      console.log(`🚀 Timestamps updated to ${currentSyncTime}. Everything is configured perfectly!`);
       return;
     }
 
+    // Live Tournament Mode
     const apiTeams = {};
     groups.forEach(group => {
       group.forEach(item => {
@@ -39,10 +51,12 @@ async function sync() {
     for (const team of dbTeams) {
       const live = apiTeams[team.country];
       if (live) {
+        // FIXED: Added updated_at here too, so live tournament runs update the website countdown seamlessly
         await supabase.from('world_cup_leaderboard').update({
           wins: live.wins,
           gd: live.gd,
-          eliminated: live.eliminated
+          eliminated: live.eliminated,
+          updated_at: currentSyncTime
         }).eq('id', team.id);
         console.log(`Updated ${team.country}`);
       }
@@ -50,7 +64,7 @@ async function sync() {
     console.log("🚀 Sync successfully complete!");
   } catch (err) {
     console.error("❌ Error running update:", err.message);
-    process.exit(1); // Force failure only if keys or database are broken
+    process.exit(1); 
   }
 }
 sync();
