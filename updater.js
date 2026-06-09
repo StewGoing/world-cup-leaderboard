@@ -27,7 +27,6 @@ function formatToAEST(utcString) {
   return `${datePart}, ${timePart}`;
 }
 
-// Master Weight Calculator for precise sorting hierarchy
 function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) {
   if (!stageString) return 1;
   const stage = stageString.toUpperCase();
@@ -37,22 +36,16 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) return 4;
   if (stage.includes('QUARTER')) return 5;
   
-  if (stage.includes('SEMI')) {
-    return (matchStatus === 'IN_PLAY' || matchStatus === 'LIVE') ? 6 : 6; 
-  }
+  if (stage.includes('SEMI')) return 6;
   
   if (stage.includes('THIRD') || stage.includes('3RD')) {
-    if (matchStatus === 'FINISHED') {
-      return isWinner ? 8 : 7; // Locked 3rd or 4th Place
-    }
-    return 6; // Treated as Semis contender weight while matching is open
+    if (matchStatus === 'FINISHED') return isWinner ? 8 : 7;
+    return 6;
   }
   
   if (stage.includes('FINAL')) {
-    if (matchStatus === 'FINISHED') {
-      return isWinner ? 10 : 9; // Locked Champion or Runner Up
-    }
-    return 11; // Active Finalist Contender ("Finals bound")
+    if (matchStatus === 'FINISHED') return isWinner ? 10 : 9;
+    return 11;
   }
   return 1;
 }
@@ -83,6 +76,7 @@ async function sync() {
     const teamLiveStageMap = {};
     const teamMatchStatusMap = {};
     const matchWinnersSet = new Set();
+    let liveGamesCount = 0;
 
     allMatches.forEach(m => {
       const homeName = m.homeTeam?.name || '';
@@ -100,6 +94,10 @@ async function sync() {
         teamMatchStatusMap[awayName] = m.status;
       }
 
+      if (m.status === 'IN_PLAY' || m.status === 'LIVE') {
+        liveGamesCount++;
+      }
+
       if (m.status === 'FINISHED') {
         const winner = m.score.winner === 'HOME_TEAM' ? homeName : m.score.winner === 'AWAY_TEAM' ? awayName : null;
         if (winner) matchWinnersSet.add(winner);
@@ -114,6 +112,20 @@ async function sync() {
         }
       }
     });
+
+    // GENERATE INTERACTIVE REAL-TIME TICKER HEADLINES
+    const headlines = [
+      "Welcome to the World Cup Draft Decider Leaderboard!",
+      "FIFA confirms roster selection list: 1,248 player dreams active across 48 nations.",
+      "The tournament is expanding to an historic 104 matches.",
+      "Opening Match tomorrow: Mexico vs South Africa at Azteca Stadium kicks off at 5:00 AM AEST."
+    ];
+
+    if (liveGamesCount > 0) {
+      headlines.unshift(`🔥 LIVE ALERTS ACTIVE: ${liveGamesCount} tournament matches currently running in real-time!`);
+    }
+
+    const tickerPayloadString = headlines.join("  •  ");
 
     const apiTeamsMap = {};
     groups.forEach(g => {
@@ -145,12 +157,14 @@ async function sync() {
     const { data: dbTeams, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
     if (dbError) throw dbError;
 
+    // PRE-KICKOFF INTERFACE ROUTING
     if (groups.length === 0 || Object.keys(apiTeamsMap).length === 0) {
-      console.log("⚠️ Standings empty. Processing in pre-kickoff fixture mode...");
+      console.log("⚠️ Standings empty. Processing pre-kickoff mode...");
       for (const team of dbTeams) {
         const nextMatchText = nextMatchMap[team.country] || "TBD (Check Group Stage)";
         await supabase.from('world_cup_leaderboard').update({
           next_match: nextMatchText,
+          notes: tickerPayloadString, // We pass the unified news feed inside the notes slot
           updated_at: currentSyncTime
         }).eq('id', team.id);
       }
@@ -171,17 +185,19 @@ async function sync() {
           games_played: live.played,
           stage: stageWeightNum, 
           next_match: nextMatchText,
+          notes: tickerPayloadString, // Updates ticker array continuously
           updated_at: currentSyncTime
         }).eq('id', team.id);
       } else {
         await supabase.from('world_cup_leaderboard').update({
           next_match: nextMatchText,
+          notes: tickerPayloadString,
           updated_at: currentSyncTime
         }).eq('id', team.id);
       }
     }
 
-    console.log("🚀 Complete Dynamic Placement Engine Sync finished successfully!");
+    console.log("🚀 Complete Ticker-Integrated Placement Engine Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
