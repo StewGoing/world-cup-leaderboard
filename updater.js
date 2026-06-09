@@ -8,6 +8,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // Formats UTC timestamps to an ultra-compact layout: 'Thu 11/06, 2:00am'
 function formatToAEST(utcString) {
+  if (!utcString) return '';
   const date = new Date(utcString);
   
   const datePart = date.toLocaleDateString('en-AU', {
@@ -52,17 +53,21 @@ async function sync() {
     // Map through the competition calendar to build the 3-letter acronym schedule
     const nextMatchMap = {};
     allMatches.forEach(m => {
-      const homeName = m.homeTeam.name;
-      const homeTLA = m.homeTeam.tla || homeName.substring(0, 3).toUpperCase();
-      const awayName = m.awayTeam.name;
-      const awayTLA = m.awayTeam.tla || awayName.substring(0, 3).toUpperCase();
+      // Safety checks for unconfirmed placeholder entries
+      const homeName = m.homeTeam?.name || '';
+      const awayName = m.awayTeam?.name || '';
+      
+      // Strict null-checks for the acronym extraction
+      const homeTLA = m.homeTeam?.tla || (homeName ? homeName.substring(0, 3).toUpperCase() : 'TBD');
+      const awayTLA = m.awayTeam?.tla || (awayName ? awayName.substring(0, 3).toUpperCase() : 'TBD');
+      
       const aestTime = formatToAEST(m.utcDate);
 
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
-        if (!nextMatchMap[homeName]) {
+        if (homeName && !nextMatchMap[homeName]) {
           nextMatchMap[homeName] = `vs ${awayTLA} • ${aestTime}`;
         }
-        if (!nextMatchMap[awayName]) {
+        if (awayName && !nextMatchMap[awayName]) {
           nextMatchMap[awayName] = `vs ${homeTLA} • ${aestTime}`;
         }
       }
@@ -73,12 +78,14 @@ async function sync() {
     groups.forEach(g => {
       if (g.table) {
         g.table.forEach(item => {
-          apiTeamsMap[item.team.name] = {
-            wins: item.won || 0,
-            gd: item.goalDifference || 0,
-            played: item.playedGames || 0,
-            eliminated: false 
-          };
+          if (item.team && item.team.name) {
+            apiTeamsMap[item.team.name] = {
+              wins: item.won || 0,
+              gd: item.goalDifference || 0,
+              played: item.playedGames || 0,
+              eliminated: false 
+            };
+          }
         });
       }
     });
