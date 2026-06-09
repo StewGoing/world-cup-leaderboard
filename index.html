@@ -6,9 +6,37 @@
   <title>World Cup Fantasy Draft Decider</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Premium hardware-accelerated infinite scrolling ticker styling animation */
+    @keyframes marquee {
+      0% { transform: translate3d(0, 0, 0); }
+      100% { transform: translate3d(-50%, 0, 0); }
+    }
+    .ticker-wrap {
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .ticker-content {
+      display: inline-block;
+      padding-left: 20%;
+      animation: marquee 35s linear infinite;
+    }
+    .ticker-content:hover {
+      animation-play-state: paused; /* Pauses news scroll on tap or mouse hovering */
+    }
+  </style>
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
+  <!-- SMOOTH-ANIMATED NEWS TICKER TRAY -->
+  <div class="max-w-5xl mx-auto mb-4 bg-neutral-900/80 border border-neutral-800/60 rounded-lg overflow-hidden h-7 flex items-center shadow-lg">
+    <div class="bg-amber-500 text-neutral-950 text-[9px] font-black uppercase tracking-widest px-3 h-full flex items-center z-10 shrink-0 select-none shadow-md">News</div>
+    <div class="ticker-wrap w-full font-mono text-[11px] text-neutral-300 font-semibold relative">
+      <div id="news-ticker" class="ticker-content">Loading live FIFA tournament feeds...</div>
+    </div>
+  </div>
+
+  <!-- Header Layout -->
   <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 flex flex-col md:flex-row md:justify-between items-center md:items-end gap-3 text-center md:text-left">
     <div>
       <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
@@ -25,9 +53,11 @@
       Connecting to Cloud Standings...
     </div>
 
+    <!-- Main Table Container Layout -->
     <div id="board-wrapper" class="hidden space-y-6">
       <div class="bg-neutral-900 border border-neutral-800 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl">
         
+        <!-- DESKTOP SCREEN GRIDS -->
         <div class="hidden md:block overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
@@ -46,9 +76,11 @@
           </table>
         </div>
 
+        <!-- RESPONSIVE MOBILE CELL LIST STACKS -->
         <div id="mobile-list" class="block md:hidden divide-y divide-neutral-800/60 bg-neutral-900"></div>
       </div>
 
+      <!-- BOTTOM RULE LEGEND BOX WITH INTEGRATED ACRONYM DEFINITIONS -->
       <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 md:p-6 shadow-xl space-y-5">
         <div>
           <h3 class="text-xs uppercase font-black text-amber-500 tracking-widest border-b border-neutral-800 pb-2 mb-3">Tournament Rules & Tiebreaker Hierarchy</h3>
@@ -78,7 +110,6 @@
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
-    // Exact mapping for the requested tournament path labels
     const STAGES = { 
       1: "Group", 
       3: "R32", 
@@ -121,6 +152,13 @@
 
         if (data.length > 0 && data[0].updated_at) calculateTimeDelta(data[0].updated_at);
 
+        // Populate the scrolling marquee news content smoothly 
+        if (data.length > 0 && data[0].notes) {
+          const rawHeadline = data[0].notes;
+          // Duplicated text pattern to guarantee zero trailing blanks during continuous looping
+          document.getElementById('news-ticker').innerText = `${rawHeadline}  •  ${rawHeadline}`;
+        }
+
         const sorted = data.sort((a, b) => {
           if (b.stage !== a.stage) return b.stage - a.stage;
           if (b.wins !== a.wins) return b.wins - a.wins;
@@ -143,7 +181,6 @@
           if (pick === 1) pickColor = 'text-emerald-400 font-black';
           if (pick === 12) pickColor = 'text-rose-500 font-black';
 
-          // Color accents tailored for tournament progression
           let stageLabelColor = 'text-amber-400 border-amber-500/20';
           if (team.stage === 10) stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black';
           if (team.stage === 9) stageLabelColor = 'text-zinc-300 border-zinc-500/20 bg-zinc-900/40';
