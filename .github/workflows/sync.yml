@@ -1,7 +1,7 @@
 name: Live World Cup Standings Sync
 on:
   schedule:
-    - cron: '0 */6 * * *' # Triggers automatically every 6 hours
+    - cron: '0 * * * *' # Triggers automatically at the top of every hour (every 60 mins)
   workflow_dispatch: # Allows you to manually trigger it with a button click
 jobs:
   update-data:
