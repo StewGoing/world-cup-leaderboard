@@ -25,6 +25,7 @@ function formatToAEST(utcString) {
   return `${datePart}, ${timePart}`;
 }
 
+// Master Weight Calculator for precise sorting hierarchy
 function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) {
   if (!stageString) return 1;
   const stage = stageString.toUpperCase();
@@ -32,58 +33,70 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('LAST_32') || stage.includes('ROUND_OF_32')) return 3;
   if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) return 4;
   if (stage.includes('QUARTER')) return 5;
-  if (stage.includes('SEMI')) return 6;
+  if (stage.includes('SEMI')) return 6; // Semis bound
   if (stage.includes('THIRD') || stage.includes('3RD')) {
-    if (matchStatus === 'FINISHED') return isWinner ? 8 : 7;
+    if (matchStatus === 'FINISHED') return isWinner ? 8 : 7; // Locked 3rd or 4th Place
     return 6;
   }
   if (stage.includes('FINAL')) {
-    if (matchStatus === 'FINISHED') return isWinner ? 10 : 9;
-    return 11;
+    if (matchStatus === 'FINISHED') return isWinner ? 10 : 9; // Locked Champion or Runner Up
+    return 11; // Active Finalist Contender ("Finals bound")
   }
   return 1;
 }
 
-// Custom zero-dependency regex parser to bypass npm installation issues
+// Scrapes real media articles and heavily filters them to ensure factual descriptiveness
 async function fetchGoogleNewsHeadlines() {
   try {
-    const res = await fetch('https://news.google.com/rss/search?q=FIFA+World+Cup&hl=en-US&gl=US&ceid=US:en');
+    // 1. ADVANCED SEARCH QUERY: Forces descriptive context words directly into the article title
+    const targetQuery = 'intitle:("World Cup" OR FIFA) AND intitle:(injured OR roster OR squad OR shock OR blow OR out OR confirm OR miss OR match) -stock -shares';
+    const encodedQuery = encodeURIComponent(targetQuery);
+    
+    // Limits search scope strictly to news published within the past 24 hours
+    const res = await fetch(`https://news.google.com/rss/search?q=${encodedQuery}+when:1d&hl=en-US&gl=US&ceid=US:en`);
     const xmlText = await res.text();
     
-    // Uses regex to find content inside <title> tags cleanly
     const titleRegex = /<title>(.*?)<\/title>/g;
     const headlines = [];
     let match;
     
+    // 2. CLICKBAIT BLACKLIST FILTER
+    const clickbaitBlacklist = [
+      "here's why", "won't believe", "revealed", "reason behind", 
+      "reacts to", "prediction", "opinion", "preview", "how to watch"
+    ];
+    
     while ((match = titleRegex.exec(xmlText)) !== null) {
       let title = match[1];
       
-      // Skip the main RSS feed title channel header
       if (title.toLowerCase().includes('google news') || title.toLowerCase() === 'fifa world cup') {
         continue;
       }
       
-      // Decode basic XML entities common in headlines
+      // Filter out non-descriptive, essay, or clickbait titles
+      const isClickbait = clickbaitBlacklist.some(phrase => title.toLowerCase().includes(phrase));
+      if (isClickbait) continue;
+
+      // Decode XML formatting tags cleanly
       title = title.replace(/&amp;/g, '&')
                    .replace(/&quot;/g, '"')
                    .replace(/&apos;/g, "'")
                    .replace(/&gt;/g, '>')
                    .replace(/&lt;/g, '<');
       
-      // Clean off trailing publisher watermarks
+      // Strip out trailing publisher watermarks
       if (title.includes(' - ')) {
         title = title.substring(0, title.lastIndexOf(' - '));
       }
       
       headlines.push(`📰 NEWS: ${title.trim()}`);
       
-      // Restrict collection to the top 3 items to keep horizontal marquee fast
       if (headlines.length >= 3) break;
     }
     
     return headlines;
   } catch (err) {
-    console.log("⚠️ Native Regex News Scraper failed. Falling back to default messages.");
+    console.log("⚠️ Advanced News Scraper failed. Falling back to default messages.");
     return [];
   }
 }
@@ -147,7 +160,7 @@ async function sync() {
     });
 
     // =========================================================================
-    // HYBRID LIVE SCORES & JOURNALISM HEADLINE COMPILATION ENGINE
+    // HYBRID LIVE SCORES & FACTUAL JOURNALISM TICKER ENGINE
     // =========================================================================
     const headlines = [];
     const todayStr = new Date().toISOString().split('T')[0];
@@ -155,6 +168,7 @@ async function sync() {
     const todaysMatches = allMatches.filter(m => m.utcDate.startsWith(todayStr));
     const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE');
 
+    // Prioritize running live match scores if games are currently active
     if (liveMatches.length > 0) {
       liveMatches.forEach(m => {
         const homeTLA = m.homeTeam?.tla || 'TBD';
@@ -172,7 +186,8 @@ async function sync() {
       headlines.push(`📅 TODAY'S SCHEDULE: ${matchScheduleText}`);
     }
 
-    console.log("Scraping real-world Google News feeds natively...");
+    // Blend high-relevance, filtered journalism updates into the marquee stream
+    console.log("Scraping real-world filtered news feeds...");
     const realMediaNews = await fetchGoogleNewsHeadlines();
     realMediaNews.forEach(newsString => headlines.push(newsString));
 
