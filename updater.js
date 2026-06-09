@@ -39,7 +39,7 @@ async function sync() {
     });
     const fixturesJson = await fixturesRes.json();
     const upcomingFixtures = fixturesJson.response || [];
-
+      console.log("RAW FIXTURES FROM API:", JSON.stringify(upcomingFixtures, null, 2));
     // Map through the next 15 fixtures to build an upcoming schedule tracker
     const nextMatchMap = {};
     upcomingFixtures.forEach(f => {
