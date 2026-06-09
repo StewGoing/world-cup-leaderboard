@@ -44,10 +44,9 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// Streamlined news fetcher that completely cleans out source names and clickbait text
+// Upgraded Topic-Summary Extraction Engine
 async function fetchTopWorldCupStories() {
   try {
-    // Focus search parameters entirely on main sporting developments while filtering out tax docs
     const targetQuery = '"FIFA World Cup" -site:gov -site:mil -intitle:tax -intitle:economy';
     const encodedQuery = encodeURIComponent(targetQuery);
     
@@ -56,17 +55,18 @@ async function fetchTopWorldCupStories() {
     
     const titleRegex = /<title>(.*?)<\/title>/g;
     const headlines = [];
+    
+    // Track unique core topic subjects to block cluster variations (e.g., stopping multiple "Iran ticket" stories)
+    const processedTopics = [];
     let match;
     
     while ((match = titleRegex.exec(xmlText)) !== null) {
       let fullTitle = match[1];
       
-      // Skip the main RSS feed descriptor header block
       if (fullTitle.toLowerCase().includes('google news') || fullTitle.toLowerCase() === 'fifa world cup') {
         continue;
       }
 
-      // Convert common XML entities to clean plaintext spacing symbols
       fullTitle = fullTitle.replace(/&amp;/g, '&')
                            .replace(/&quot;/g, '"')
                            .replace(/&apos;/g, "'")
@@ -74,22 +74,41 @@ async function fetchTopWorldCupStories() {
                            .replace(/&lt;/g, '<');
       
       let cleanedHeadline = fullTitle;
-
-      // Clean out trailing source brand components cleanly (e.g. " - BBC Sport")
       if (fullTitle.includes(' - ')) {
         cleanedHeadline = fullTitle.substring(0, fullTitle.lastIndexOf(' - ')).trim();
       }
+
+      // Check if this headline is part of an already captured story cluster
+      const lowercaseHeadline = cleanedHeadline.toLowerCase();
       
-      // Push the clean, source-less headline straight into the tracker array
+      // Smart Keyword Clustering Rule: If two headlines share significant topic identifiers, skip the second one
+      const topicKeywords = ["iran", "referee", "ticket", "injured", "squad", "stadium", "visa", "artan", "messi", "ronaldo"];
+      let isDuplicateCluster = false;
+
+      for (const keyword of topicKeywords) {
+        if (lowercaseHeadline.includes(keyword) && processedTopics.includes(keyword)) {
+          isDuplicateCluster = true;
+          break;
+        }
+      }
+
+      if (isDuplicateCluster) continue;
+
+      // Log the core keywords of this summary story so subordinate entries are skipped
+      topicKeywords.forEach(keyword => {
+        if (lowercaseHeadline.includes(keyword)) {
+          processedTopics.push(keyword);
+        }
+      });
+      
       headlines.push(`⚽ ${cleanedHeadline}`);
       
-      // Enforce a hard cap of exactly 3 relevant main stories
       if (headlines.length >= 3) break;
     }
     
     return headlines;
   } catch (err) {
-    console.log("⚠️ News scraper encountered an execution timeout. Using core fallbacks.");
+    console.log("⚠️ News summary scraper encountered an issue. Using system fallbacks.");
     return [];
   }
 }
@@ -144,7 +163,7 @@ async function sync() {
 
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         if (homeName && !nextMatchMap[homeName]) {
-          nextMatchMap[homeName] = `vs ${awayTLA} • ${aestTime}`;
+          nextMatchMap[nextMatchMap[homeName] = `vs ${awayTLA} • ${aestTime}`];
         }
         if (awayName && !nextMatchMap[awayName]) {
           nextMatchMap[awayName] = `vs ${homeTLA} • ${aestTime}`;
@@ -153,7 +172,7 @@ async function sync() {
     });
 
     // =========================================================================
-    // HIGH-RELEVANCE MINIMALIST REAL-TIME COMPILATION ENGINE
+    // DYNAMIC METADATA NEWS TICKER ENGINE
     // =========================================================================
     const headlines = [];
     const todayStr = new Date().toISOString().split('T')[0];
@@ -178,7 +197,7 @@ async function sync() {
       headlines.push(`📅 TODAY'S SCHEDULE: ${matchScheduleText}`);
     }
 
-    console.log("Fetching top 3 minimalist global stories...");
+    console.log("Compiling macro story summaries...");
     const topStories = await fetchTopWorldCupStories();
     topStories.forEach(story => headlines.push(story));
 
@@ -219,19 +238,6 @@ async function sync() {
     const { data: dbTeams, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
     if (dbError) throw dbError;
 
-    if (groups.length === 0 || Object.keys(apiTeamsMap).length === 0) {
-      console.log("⚠️ Standings empty. Processing pre-kickoff fixture mode...");
-      for (const team of dbTeams) {
-        const nextMatchText = nextMatchMap[team.country] || "TBD (Check Group Stage)";
-        await supabase.from('world_cup_leaderboard').update({
-          next_match: nextMatchText,
-          notes: tickerPayloadString,
-          updated_at: currentSyncTime
-        }).eq('id', team.id);
-      }
-      return;
-    }
-
     for (const team of dbTeams) {
       const live = apiTeamsMap[team.country];
       const nextMatchText = nextMatchMap[team.country] || (live?.eliminated ? "❌ Eliminated" : "TBD");
@@ -258,7 +264,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Minimalist Top-3 Sports Ticker Engine Sync finished successfully!");
+    console.log("🚀 Summary-Cluster Engine Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
