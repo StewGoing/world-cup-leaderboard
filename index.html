@@ -7,7 +7,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Premium hardware-accelerated infinite scrolling ticker styling animation */
+    /* Hardware-accelerated infinite scrolling ticker styling animation */
     @keyframes marquee {
       0% { transform: translate3d(0, 0, 0); }
       100% { transform: translate3d(-50%, 0, 0); }
@@ -22,13 +22,12 @@
       animation: marquee 35s linear infinite;
     }
     .ticker-content:hover {
-      animation-play-state: paused; /* Pauses news scroll on tap or mouse hovering */
+      animation-play-state: paused; /* Pauses news scroll on tap or mouse hover */
     }
   </style>
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
-  <!-- SMOOTH-ANIMATED NEWS TICKER TRAY -->
   <div class="max-w-5xl mx-auto mb-4 bg-neutral-900/80 border border-neutral-800/60 rounded-lg overflow-hidden h-7 flex items-center shadow-lg">
     <div class="bg-amber-500 text-neutral-950 text-[9px] font-black uppercase tracking-widest px-3 h-full flex items-center z-10 shrink-0 select-none shadow-md">News</div>
     <div class="ticker-wrap w-full font-mono text-[11px] text-neutral-300 font-semibold relative">
@@ -36,7 +35,6 @@
     </div>
   </div>
 
-  <!-- Header Layout -->
   <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 flex flex-col md:flex-row md:justify-between items-center md:items-end gap-3 text-center md:text-left">
     <div>
       <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
@@ -53,11 +51,9 @@
       Connecting to Cloud Standings...
     </div>
 
-    <!-- Main Table Container Layout -->
     <div id="board-wrapper" class="hidden space-y-6">
       <div class="bg-neutral-900 border border-neutral-800 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl">
         
-        <!-- DESKTOP SCREEN GRIDS -->
         <div class="hidden md:block overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
@@ -76,11 +72,9 @@
           </table>
         </div>
 
-        <!-- RESPONSIVE MOBILE CELL LIST STACKS -->
         <div id="mobile-list" class="block md:hidden divide-y divide-neutral-800/60 bg-neutral-900"></div>
       </div>
 
-      <!-- BOTTOM RULE LEGEND BOX WITH INTEGRATED ACRONYM DEFINITIONS -->
       <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 md:p-6 shadow-xl space-y-5">
         <div>
           <h3 class="text-xs uppercase font-black text-amber-500 tracking-widest border-b border-neutral-800 pb-2 mb-3">Tournament Rules & Tiebreaker Hierarchy</h3>
@@ -153,10 +147,12 @@
         if (data.length > 0 && data[0].updated_at) calculateTimeDelta(data[0].updated_at);
 
         // Populate the scrolling marquee news content smoothly 
-        if (data.length > 0 && data[0].notes) {
+        if (data.length > 0 && data[0].notes && data[0].notes.trim() !== "") {
           const rawHeadline = data[0].notes;
-          // Duplicated text pattern to guarantee zero trailing blanks during continuous looping
           document.getElementById('news-ticker').innerText = `${rawHeadline}  •  ${rawHeadline}`;
+        } else {
+          const fallbackNews = "⏳ STANDBY ACTIVE: Fetching latest FIFA World Cup tournament feeds directly from wire rooms...";
+          document.getElementById('news-ticker').innerText = `${fallbackNews}  •  ${fallbackNews}`;
         }
 
         const sorted = data.sort((a, b) => {
@@ -191,6 +187,8 @@
           // --- DESKTOP RENDER ---
           const dRow = document.createElement('tr');
           dRow.className = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
+          
+          // NOTE: target column 8 uses innerHTML injection to parse the badge spans from Supabase safely
           dRow.innerHTML = `
             <td class="py-4 px-6 text-center font-black text-base ${pickColor}">#${pick}</td>
             <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm">${team.manager}</td>
@@ -206,7 +204,7 @@
             <td class="py-4 px-5 text-center font-mono text-neutral-400 text-sm font-semibold">${winsCount}/${playedCount}</td>
             <td class="py-4 px-4 text-center font-mono font-bold text-sm ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</td>
             <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(2)}</td>
-            <td class="py-4 px-5 text-left font-mono text-[11px] text-amber-500/90 font-medium truncate max-w-[240px]" title="${matchString}">${matchString}</td>
+            <td class="py-4 px-5 text-left font-mono text-[11px] text-amber-500/90 font-medium truncate max-w-[280px]" title="">${matchString}</td>
           `;
           desktopBody.appendChild(dRow);
 
@@ -244,8 +242,8 @@
             </div>
             
             <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex justify-between items-center text-[10px] font-mono">
-              <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider shrink-0">Next Match (AEST):</span>
-              <span class="text-amber-500 font-semibold text-right max-w-none ml-2 truncate" title="${matchString}">${matchString}</span>
+              <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider shrink-0">Next Match:</span>
+              <span class="text-amber-500 font-semibold text-right max-w-none ml-2 truncate">${matchString}</span>
             </div>
           `;
           mobileContainer.appendChild(mCard);
