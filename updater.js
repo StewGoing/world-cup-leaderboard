@@ -44,68 +44,55 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// Scrapes and enforces strict factual, descriptive narrative criteria for headlines
-async function fetchNewswireHeadlines() {
+// Fresh, cleaned-up global news fetcher
+async function fetchTopWorldCupStories() {
   try {
-    const baseQuery = '"World Cup" AND (source:"Reuters" OR source:"Associated Press" OR source:"AP" OR source:"AFP" OR source:"Al Jazeera")';
-    const encodedQuery = encodeURIComponent(baseQuery);
+    // A clean, natural search query. Google News naturally ranks the most reputable domains 
+    // (BBC, ESPN, Sky, Reuters) at the top for major global sporting events.
+    const targetQuery = '"FIFA World Cup"';
+    const encodedQuery = encodeURIComponent(targetQuery);
     
-    const res = await fetch(`https://news.google.com/rss/search?q=${encodedQuery}+when:2d&hl=en-US&gl=US&ceid=US:en`);
+    // Scrapes Google News looking at hot topics from the last 24 hours (when:1d)
+    const res = await fetch(`https://news.google.com/rss/search?q=${encodedQuery}+when:1d&hl=en-US&gl=US&ceid=US:en`);
     const xmlText = await res.text();
     
     const titleRegex = /<title>(.*?)<\/title>/g;
     const headlines = [];
     let match;
     
-    // 1. HARD BLOCKED METADATA STREAMS
-    const garbageBlacklist = [
-      "here's why", "won't believe", "revealed", "reason behind", "predict",
-      "prediction", "opinion", "preview", "how to watch", "watch live", "stream",
-      "analysis", "verdict", "ranking", "best", "worst", "controversy", "fans react",
-      "in pictures", "photo summary", "premier news agency", "national & international",
-      "bollywood", "business & political", "india news", "latest updates"
-    ];
-
-    // 2. REQUIRED TOURNAMENT ANCHOR WORDS (Ensures it is an actual news event string)
-    const sportsAnchors = [
-      "vs", "win", "loss", "draw", "beat", "defeat", "squad", "roster", "injury", "injured",
-      "out", "miss", "rule", "arrive", "visa", "ticket", "play", "match", "coach", "sustain",
-      "training", "squad", "player", "star", "team", "group", "opener"
-    ];
-    
     while ((match = titleRegex.exec(xmlText)) !== null) {
-      let title = match[1];
+      let fullTitle = match[1];
       
-      if (title.toLowerCase().includes('google news') || title.toLowerCase() === 'fifa world cup') {
+      // Skip the main RSS feed channel title header itself
+      if (fullTitle.toLowerCase().includes('google news') || fullTitle.toLowerCase() === 'fifa world cup') {
         continue;
       }
-      
-      // Filter out meta summaries, categories, or commentary columns
-      const isGarbage = garbageBlacklist.some(phrase => title.toLowerCase().includes(phrase));
-      if (isGarbage) continue;
 
-      // Enforce that the headline text contains an active sport action or data point
-      const hasAnchor = sportsAnchors.some(anchor => title.toLowerCase().includes(anchor));
-      if (!hasAnchor) continue;
-
-      title = title.replace(/&amp;/g, '&')
-                   .replace(/&quot;/g, '"')
-                   .replace(/&apos;/g, "'")
-                   .replace(/&gt;/g, '>')
-                   .replace(/&lt;/g, '<');
+      // Clean basic XML text spacing rules
+      fullTitle = fullTitle.replace(/&amp;/g, '&')
+                           .replace(/&quot;/g, '"')
+                           .replace(/&apos;/g, "'")
+                           .replace(/&gt;/g, '>')
+                           .replace(/&lt;/g, '<');
       
-      if (title.includes(' - ')) {
-        title = title.substring(0, title.lastIndexOf(' - '));
+      // Dynamically extract the headline and the source (e.g., "Headline Text - BBC Sport")
+      let headlineText = fullTitle;
+      let sourceName = "WORLD CUP NEWS"; // Default fallback label
+
+      if (fullTitle.includes(' - ')) {
+        headlineText = fullTitle.substring(0, fullTitle.lastIndexOf(' - ')).trim();
+        sourceName = fullTitle.substring(fullTitle.lastIndexOf(' - ') + 3).trim().toUpperCase();
       }
       
-      headlines.push(`🚨 REUTERS WIRES: ${title.trim()}`);
+      headlines.push(`📰 ${sourceName}: ${headlineText}`);
       
+      // Strictly capture the top 3 trending global updates of the day
       if (headlines.length >= 3) break;
     }
     
     return headlines;
   } catch (err) {
-    console.log("⚠️ Objective wire scraper encountered an interface timeout.");
+    console.log("⚠️ News scraper encountered a temporary error. Using default layout messages.");
     return [];
   }
 }
@@ -169,7 +156,7 @@ async function sync() {
     });
 
     // =========================================================================
-    // HYBRID LIVE SCORES & NEWSTEXT ENGINE
+    // CLEAN HYBRID REAL-TIME COMPILATION ENGINE
     // =========================================================================
     const headlines = [];
     const todayStr = new Date().toISOString().split('T')[0];
@@ -194,13 +181,13 @@ async function sync() {
       headlines.push(`📅 TODAY'S SCHEDULE: ${matchScheduleText}`);
     }
 
-    console.log("Scraping and filtering hard wire news strings...");
-    const realMediaNews = await fetchNewswireHeadlines();
-    realMediaNews.forEach(newsString => headlines.push(newsString));
+    console.log("Fetching top trending global stories...");
+    const topStories = await fetchTopWorldCupStories();
+    topStories.forEach(story => headlines.push(story));
 
     if (headlines.length === 0) {
       headlines.push("Welcome to the World Cup Draft Decider Leaderboard!");
-      headlines.push("Expanded 48-team tournament system active. Standings re-index every 60 minutes.");
+      headlines.push("Standings re-index automatically every 60 minutes.");
     }
 
     const tickerPayloadString = headlines.join("   •   ");
@@ -275,7 +262,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Filtered Wire-Service Ticker Engine Sync finished successfully!");
+    console.log("🚀 Cleaned Global News Ticker Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
