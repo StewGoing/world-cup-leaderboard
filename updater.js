@@ -56,13 +56,13 @@ async function sync() {
       }
     });
 
-    // PRE-KICKOFF FALLBACK
+    // PRE-KICKOFF FALLBACK MODE
     if (!groups) {
       console.log("⚠️ Standings not active yet on API. Running connection validation test...");
       const { data: dbTeams, error } = await supabase.from('world_cup_leaderboard').select('*');
       if (error) throw error;
 
-      // Force-update metadata and timestamps so the dashboard counters register activity
+      // FIXED: Inject the live mapped fixtures and synchronization timestamp even while standings remain inactive
       for (const team of dbTeams) {
         const nextMatchText = nextMatchMap[team.country] || "TBD (Check Group Stage)";
         await supabase.from('world_cup_leaderboard').update({
@@ -74,7 +74,7 @@ async function sync() {
       return;
     }
 
-    // LIVE TOURNAMENT MAPPING
+    // LIVE TOURNAMENT MODE MAPPING
     const apiTeams = {};
     groups.forEach(group => {
       group.forEach(item => {
