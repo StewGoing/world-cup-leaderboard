@@ -6,15 +6,12 @@ const FOOTBALL_DATA_API_KEY = process.env.FOOTBALL_DATA_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// MOBILE-OPTIMIZED DATE FORMAT ENGINE (Order: Time, Day, Date)
 function formatToAEST(utcString) {
   if (!utcString) return '';
   const date = new Date(utcString);
-  const datePart = date.toLocaleDateString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit'
-  });
+  
+  // 1. Extract clean time (e.g., "2:00am")
   const timePart = date.toLocaleTimeString('en-AU', {
     timeZone: 'Australia/Sydney',
     hour: 'numeric',
@@ -22,7 +19,20 @@ function formatToAEST(utcString) {
     hour12: true
   }).toLowerCase().replace(' ', '');
 
-  return `${datePart}, ${timePart}`;
+  // 2. Extract day of the week (e.g., "Tue")
+  const dayPart = date.toLocaleDateString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'short'
+  });
+
+  // 3. Extract numerical date (e.g., "16/06")
+  const datePart = date.toLocaleDateString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    day: '2-digit',
+    month: '2-digit'
+  });
+
+  return `${timePart}, ${dayPart} ${datePart}`;
 }
 
 function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) {
@@ -130,7 +140,7 @@ async function sync() {
     const matchWinnersSet = new Set();
     const liveMatchMap = {};
 
-    // PASS 1: Isolate active live matches
+    // PASS 1: Isolate active live matches (Handles LIVE, IN_PLAY, and half-time PAUSED)
     allMatches.forEach(m => {
       const homeName = m.homeTeam?.name || '';
       const awayName = m.awayTeam?.name || '';
@@ -167,7 +177,7 @@ async function sync() {
       }
     });
 
-    // PASS 2: Gather future schedules with dynamic countdown math
+    // PASS 2: Gather upcoming future schedules with dynamic hourly tracking
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         const homeName = m.homeTeam?.name || '';
@@ -184,16 +194,16 @@ async function sync() {
         
         let badgeHTML = "";
         if (isWithin48Hours) {
-          // Calculate exact total hours remaining, rounded up to the nearest hour
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
           badgeHTML = `<span style="background-color: #ffc107; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span> `;
         }
 
+        // Space-saving visual optimization using "|" pipe dividers instead of heavy bullets
         if (homeName && !liveMatchMap[homeName] && !nextMatchMap[homeName]) {
-          nextMatchMap[homeName] = `${badgeHTML}vs ${awayTLA} • ${aestTime}`;
+          nextMatchMap[homeName] = `${badgeHTML}vs ${awayTLA} | ${aestTime}`;
         }
         if (awayName && !liveMatchMap[awayName] && !nextMatchMap[awayName]) {
-          nextMatchMap[awayName] = `${badgeHTML}vs ${homeTLA} • ${aestTime}`;
+          nextMatchMap[awayName] = `${badgeHTML}vs ${homeTLA} | ${aestTime}`;
         }
       }
     });
@@ -292,7 +302,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Countdown Badge Engine Sync finished successfully!");
+    console.log("🚀 Complete layout optimizations compiled successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
