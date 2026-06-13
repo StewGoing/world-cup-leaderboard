@@ -6,10 +6,25 @@ const FOOTBALL_DATA_API_KEY = process.env.FOOTBALL_DATA_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// RECONFIGURED DATE STRING FORMAT ENGINE (Order: Day, Date, Time)
 function formatToAEST(utcString) {
   if (!utcString) return '';
   const date = new Date(utcString);
   
+  // 1. Day of the week (e.g., "Tue")
+  const dayPart = date.toLocaleDateString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'short'
+  });
+
+  // 2. Numerical calendar date (e.g., "16/06")
+  const datePart = date.toLocaleDateString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    day: '2-digit',
+    month: '2-digit'
+  });
+
+  // 3. Kick-off time at the end (e.g., "2:00am")
   const timePart = date.toLocaleTimeString('en-AU', {
     timeZone: 'Australia/Sydney',
     hour: 'numeric',
@@ -17,18 +32,7 @@ function formatToAEST(utcString) {
     hour12: true
   }).toLowerCase().replace(' ', '');
 
-  const dayPart = date.toLocaleDateString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    weekday: 'short'
-  });
-
-  const datePart = date.toLocaleDateString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    day: '2-digit',
-    month: '2-digit'
-  });
-
-  return `${timePart}, ${dayPart} ${datePart}`;
+  return `${dayPart} ${datePart}, ${timePart}`;
 }
 
 function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) {
@@ -194,7 +198,6 @@ async function sync() {
           badgeHTML = `<span style="background-color: #ffc107; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span> `;
         }
 
-        // RESTORED: Using the dot separator format "•" for clean desktop display spacing
         if (homeName && !liveMatchMap[homeName] && !nextMatchMap[homeName]) {
           nextMatchMap[homeName] = `${badgeHTML}vs ${awayTLA} • ${aestTime}`;
         }
