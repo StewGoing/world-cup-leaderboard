@@ -66,9 +66,9 @@
                 <th class="py-4 px-4">Country Allocation</th>
                 <th class="py-4 px-4 text-center">Stage</th>
                 <th class="py-4 px-5 text-center">W/P</th>
-                <th class="py-4 px-4 text-center w-24">GD</th> <!-- Slightly wider to support nested footnotes safely -->
+                <th class="py-4 px-4 text-center w-24">GD</th>
                 <th class="py-4 px-4 text-center">Odds</th>
-                <th class="py-4 px-5 text-left">Next Match (AEST)</th> 
+                <th class="py-4 px-5 text-left">Next up (AEST)</th> <!-- SHORTENED COLUMN HEADER -->
               </tr>
             </thead>
             <tbody id="desktop-rows" class="divide-y divide-neutral-800/60"></tbody>
@@ -178,7 +178,6 @@
           const playedCount = team.games_played || 0;
           const winsCount = team.wins || 0;
           
-          // Pull raw values with safety fallbacks
           const goalsFor = team.gf || 0;
           const goalsAgainst = team.ga || 0;
           
@@ -206,8 +205,6 @@
           // --- DESKTOP RENDER ---
           const dRow = document.createElement('tr');
           dRow.className = desktopRowClass;
-          
-          // GD Column outputs stacked, compact footnote indicators for Goals For and Goals Against
           dRow.innerHTML = `
             <td class="py-4 px-6 text-center font-black text-base ${pickColor}">#${pick}</td>
             <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm">${team.manager}</td>
@@ -241,7 +238,7 @@
           const mCard = document.createElement('div');
           mCard.className = mobileCardClass;
           
-          // Mobile nests the details right below the main GD digit to preserve space completely
+          // SHORTENED EMBEDDED FOOTER TAG: Changed text down to "Next up:" to create more room for text
           mCard.innerHTML = `
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-3 min-w-0">
@@ -274,7 +271,7 @@
             </div>
             
             <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex justify-between items-center text-[10px] font-mono">
-              <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider shrink-0">Match Status:</span>
+              <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider shrink-0">Next up:</span>
               <span class="text-amber-500 font-semibold text-right max-w-none ml-2 truncate">${matchString}</span>
             </div>
           `;
