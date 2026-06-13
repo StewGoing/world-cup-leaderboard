@@ -128,11 +128,9 @@ async function sync() {
     const teamLiveStageMap = {};
     const teamMatchStatusMap = {};
     const matchWinnersSet = new Set();
-    
-    // Trackers specifically for teams playing right now
     const liveMatchMap = {};
 
-    // 1. FIRST PASS: Map general team status and isolate active live matches
+    // 1. FIRST PASS: Map statuses and isolate active live matches (including intermissions)
     allMatches.forEach(m => {
       const homeName = m.homeTeam?.name || '';
       const awayName = m.awayTeam?.name || '';
@@ -153,12 +151,14 @@ async function sync() {
         if (winner) matchWinnersSet.add(winner);
       }
 
-      // If a match is currently live, lock the live descriptions immediately
-      if (m.status === 'IN_PLAY' || m.status === 'LIVE') {
-        const homeScore = m.score?.fullTime?.home ?? 0;
-        const awayScore = m.score?.fullTime?.away ?? 0;
+      // CRITICAL FIX: Captures IN_PLAY, LIVE, and BREAK (half-time) statuses seamlessly
+      if (m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'BREAK') {
+        const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
+        const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
         
-        const liveBadgeHTML = `<span style="background-color: #ef4444; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">🔥 LIVE NOW</span> `;
+        // Formats the glowing crimson badge layout string
+        const liveLabelText = m.status === 'BREAK' ? "🔥 LIVE (HT)" : "🔥 LIVE NOW";
+        const liveBadgeHTML = `<span style="background-color: #ef4444; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">${liveLabelText}</span> `;
 
         if (homeName) {
           liveMatchMap[homeName] = `${liveBadgeHTML}vs ${awayTLA} (${homeScore} - ${awayScore})`;
@@ -169,7 +169,7 @@ async function sync() {
       }
     });
 
-    // 2. SECOND PASS: Map upcoming fixtures if the team isn't currently playing live
+    // 2. SECOND PASS: Gather future schedules if the team is completely offline
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         const homeName = m.homeTeam?.name || '';
@@ -197,19 +197,20 @@ async function sync() {
       }
     });
 
-    // MIX LIVE SCORES & CLEAN HEADLINES FOR THE TICKER
+    // GENERATE NEWS TICKER STRING TRAY
     const headlines = [];
     const todayStr = new Date().toISOString().split('T')[0];
     const todaysMatches = allMatches.filter(m => m.utcDate.startsWith(todayStr));
-    const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE');
+    const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'BREAK');
 
     if (liveMatches.length > 0) {
       liveMatches.forEach(m => {
         const homeTLA = m.homeTeam?.tla || 'TBD';
         const awayTLA = m.awayTeam?.tla || 'TBD';
-        const homeScore = m.score?.fullTime?.home ?? 0;
-        const awayScore = m.score?.fullTime?.away ?? 0;
-        headlines.push(`🔥 LIVE NOW: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}`);
+        const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
+        const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
+        const statusMarker = m.status === 'BREAK' ? ' (HT)' : '';
+        headlines.push(`🔥 LIVE NOW: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}${statusMarker}`);
       });
     } else if (todaysMatches.length > 0) {
       const matchScheduleText = todaysMatches.map(m => {
@@ -263,7 +264,7 @@ async function sync() {
     for (const team of dbTeams) {
       const live = apiTeamsMap[team.country];
       
-      // CHOOSE STATUS: If playing live right now, override completely. Otherwise, fallback to next match calendar.
+      // Select appropriate tracking context dynamically
       const isCurrentlyPlayingLive = !!liveMatchMap[team.country];
       const nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || (live?.eliminated ? "❌ Eliminated" : "TBD");
 
@@ -278,7 +279,7 @@ async function sync() {
           stage: stageWeightNum, 
           next_match: nextMatchText,
           notes: tickerPayloadString,
-          notes_bool: isCurrentlyPlayingLive, // Using your existing notes_bool column to track active live status
+          notes_bool: isCurrentlyPlayingLive, // Sends true/false indicator to your newly added table column
           updated_at: currentSyncTime
         }).eq('id', team.id);
       } else {
@@ -291,7 +292,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Complete Live Match & Glow Sync finished successfully!");
+    console.log("🚀 Complete System Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
