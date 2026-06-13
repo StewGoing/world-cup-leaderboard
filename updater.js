@@ -130,7 +130,7 @@ async function sync() {
     const matchWinnersSet = new Set();
     const liveMatchMap = {};
 
-    // PASS 1: Isolate active live matches (Catches official "LIVE", "IN_PLAY", and half-time "PAUSED" values)
+    // PASS 1: Isolate active live matches
     allMatches.forEach(m => {
       const homeName = m.homeTeam?.name || '';
       const awayName = m.awayTeam?.name || '';
@@ -151,7 +151,6 @@ async function sync() {
         if (winner) matchWinnersSet.add(winner);
       }
 
-      // FIXED CONDITIONAL: Evaluates the exact API enum strings
       if (m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED') {
         const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
         const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
@@ -168,7 +167,7 @@ async function sync() {
       }
     });
 
-    // PASS 2: Gather future schedules (Gated: skips teams already tagged as active in Pass 1)
+    // PASS 2: Gather future schedules with dynamic countdown math
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         const homeName = m.homeTeam?.name || '';
@@ -183,11 +182,13 @@ async function sync() {
         
         const isWithin48Hours = msUntilKickoff > 0 && msUntilKickoff <= 172800000;
         
-        const badgeHTML = isWithin48Hours 
-          ? `<span style="background-color: #ffc107; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ NEXT 48H</span> `
-          : "";
+        let badgeHTML = "";
+        if (isWithin48Hours) {
+          // Calculate exact total hours remaining, rounded up to the nearest hour
+          const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
+          badgeHTML = `<span style="background-color: #ffc107; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span> `;
+        }
 
-        // FIXED ENFORCEMENT: Only write future data if the country is NOT actively playing live right now
         if (homeName && !liveMatchMap[homeName] && !nextMatchMap[homeName]) {
           nextMatchMap[homeName] = `${badgeHTML}vs ${awayTLA} • ${aestTime}`;
         }
@@ -291,7 +292,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Complete Fixed Live Match Engine Sync finished successfully!");
+    console.log("🚀 Countdown Badge Engine Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
