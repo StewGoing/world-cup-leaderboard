@@ -66,7 +66,7 @@
                 <th class="py-4 px-4">Country Allocation</th>
                 <th class="py-4 px-4 text-center">Stage</th>
                 <th class="py-4 px-5 text-center">W/P</th>
-                <th class="py-4 px-4 text-center">GD</th>
+                <th class="py-4 px-4 text-center w-24">GD</th> <!-- Slightly wider to support nested footnotes safely -->
                 <th class="py-4 px-4 text-center">Odds</th>
                 <th class="py-4 px-5 text-left">Next Match (AEST)</th> 
               </tr>
@@ -96,7 +96,7 @@
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
             <div><span class="text-neutral-300 font-bold">W/P:</span> Wins / Matches Played</div>
-            <div><span class="text-neutral-300 font-bold">GD:</span> Goal Difference (Goals For minus Goals Against)</div>
+            <div><span class="text-neutral-300 font-bold">GD:</span> Goal Difference <span class="text-neutral-600 font-semibold">(F = Goals For, A = Goals Against)</span></div>
             <div><span class="text-neutral-300 font-bold">Odds:</span> Pre-tournament baseline bookmaker value</div>
           </div>
         </div>
@@ -173,10 +173,14 @@
         sorted.forEach((team, index) => {
           const pick = index + 1;
           const isEliminated = team.eliminated;
-          const isLive = team.notes_bool === true; // Read live state flag from Supabase
+          const isLive = team.notes_bool === true;
           const matchString = team.next_match || 'TBD';
           const playedCount = team.games_played || 0;
           const winsCount = team.wins || 0;
+          
+          // Pull raw values with safety fallbacks
+          const goalsFor = team.gf || 0;
+          const goalsAgainst = team.ga || 0;
           
           let pickColor = 'text-amber-500';
           if (pick === 1) pickColor = 'text-emerald-400 font-black';
@@ -189,7 +193,6 @@
           if (team.stage === 7) stageLabelColor = 'text-orange-400 border-orange-500/20';
           if (team.stage === 11 || team.stage === 6) stageLabelColor = 'text-purple-400 border-purple-500/30 bg-purple-950/20 animate-pulse';
 
-          // Set dynamic live styling row overrides
           let desktopRowClass = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
           if (isLive && !isEliminated) {
             desktopRowClass = "bg-red-950/20 border-l-4 border-red-500 transition hover:bg-red-950/30 animate-[pulse_3s_infinite]";
@@ -203,6 +206,8 @@
           // --- DESKTOP RENDER ---
           const dRow = document.createElement('tr');
           dRow.className = desktopRowClass;
+          
+          // GD Column outputs stacked, compact footnote indicators for Goals For and Goals Against
           dRow.innerHTML = `
             <td class="py-4 px-6 text-center font-black text-base ${pickColor}">#${pick}</td>
             <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm">${team.manager}</td>
@@ -212,11 +217,21 @@
             </td>
             <td class="py-4 px-4 text-center">
               <span class="text-[10px] px-2.5 py-1 rounded-full font-black uppercase bg-neutral-950 border ${isEliminated ? 'text-neutral-500 border-neutral-800' : stageLabelColor}">
-                ${STAGES[team.stage]} ${isEliminated ? '❌' : isLive ? '🔥' : '🏁'}
+                ${STAGES[team.stage]} ${isEliminated ? '❌' : '🏁'}
               </span>
             </td>
             <td class="py-4 px-5 text-center font-mono text-neutral-400 text-sm font-semibold">${winsCount}/${playedCount}</td>
-            <td class="py-4 px-4 text-center font-mono font-bold text-sm ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</td>
+            <td class="py-4 px-4 text-center font-mono">
+              <div class="flex items-center justify-center gap-2">
+                <span class="font-bold text-sm ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">
+                  ${team.gd > 0 ? '+' + team.gd : team.gd}
+                </span>
+                <div class="flex flex-col text-left text-[9px] font-sans font-semibold text-neutral-500 leading-tight border-l border-neutral-800 pl-1.5 shrink-0 select-none">
+                  <span>F: ${goalsFor}</span>
+                  <span>A: ${goalsAgainst}</span>
+                </div>
+              </div>
+            </td>
             <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(2)}</td>
             <td class="py-4 px-5 text-left font-mono text-[11px] text-amber-500/90 font-medium truncate max-w-[280px]">${matchString}</td>
           `;
@@ -225,6 +240,8 @@
           // --- MOBILE RENDER ---
           const mCard = document.createElement('div');
           mCard.className = mobileCardClass;
+          
+          // Mobile nests the details right below the main GD digit to preserve space completely
           mCard.innerHTML = `
             <div class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-3 min-w-0">
@@ -244,9 +261,10 @@
                   <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">W/P</span>
                   <span class="text-xs text-neutral-400 font-semibold">${winsCount}/${playedCount}</span>
                 </div>
-                <div class="text-center border-l border-neutral-800 pl-2.5 w-8">
+                <div class="text-center border-l border-neutral-800 pl-2.5 w-12">
                   <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">GD</span>
                   <span class="text-xs font-black ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
+                  <span class="block text-[8px] font-sans font-bold text-neutral-600 mt-0.5 leading-none">${goalsFor}F / ${goalsAgainst}A</span>
                 </div>
                 <div class="text-center border-l border-neutral-800 pl-2.5 w-10">
                   <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-widest">Odds</span>
