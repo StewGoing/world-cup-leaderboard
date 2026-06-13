@@ -44,7 +44,6 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// 1. TOPIC-SUMMARY NEWS ENGINE (Saves only the top 3 macro stories)
 async function fetchTopWorldCupStories() {
   try {
     const targetQuery = '"FIFA World Cup" -site:gov -site:mil -intitle:tax -intitle:economy';
@@ -111,7 +110,6 @@ async function sync() {
   try {
     const currentSyncTime = new Date().toISOString();
 
-    // FETCH STANDINGS
     console.log("Bulk fetching live standings dataset...");
     const standingsRes = await fetch('https://api.football-data.org/v4/competitions/WC/standings', {
       headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY }
@@ -119,7 +117,6 @@ async function sync() {
     const standingsJson = await standingsRes.json();
     const groups = standingsJson.standings || [];
 
-    // FETCH ALL FIXTURES
     console.log("Bulk fetching competition fixtures dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
       headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY }
@@ -131,14 +128,16 @@ async function sync() {
     const teamLiveStageMap = {};
     const teamMatchStatusMap = {};
     const matchWinnersSet = new Set();
+    
+    // Trackers specifically for teams playing right now
+    const liveMatchMap = {};
 
-    // 2. HIGH-VISIBILITY 48-HOUR MATCH BADGE ENGINE
+    // 1. FIRST PASS: Map general team status and isolate active live matches
     allMatches.forEach(m => {
       const homeName = m.homeTeam?.name || '';
       const awayName = m.awayTeam?.name || '';
       const homeTLA = m.homeTeam?.tla || (homeName ? homeName.substring(0, 3).toUpperCase() : 'TBD');
       const awayTLA = m.awayTeam?.tla || (awayName ? awayName.substring(0, 3).toUpperCase() : 'TBD');
-      const aestTime = formatToAEST(m.utcDate);
 
       if (homeName) {
         teamLiveStageMap[homeName] = m.stage;
@@ -154,15 +153,37 @@ async function sync() {
         if (winner) matchWinnersSet.add(winner);
       }
 
+      // If a match is currently live, lock the live descriptions immediately
+      if (m.status === 'IN_PLAY' || m.status === 'LIVE') {
+        const homeScore = m.score?.fullTime?.home ?? 0;
+        const awayScore = m.score?.fullTime?.away ?? 0;
+        
+        const liveBadgeHTML = `<span style="background-color: #ef4444; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">🔥 LIVE NOW</span> `;
+
+        if (homeName) {
+          liveMatchMap[homeName] = `${liveBadgeHTML}vs ${awayTLA} (${homeScore} - ${awayScore})`;
+        }
+        if (awayName) {
+          liveMatchMap[awayName] = `${liveBadgeHTML}vs ${homeTLA} (${awayScore} - ${homeScore})`;
+        }
+      }
+    });
+
+    // 2. SECOND PASS: Map upcoming fixtures if the team isn't currently playing live
+    allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
+        const homeName = m.homeTeam?.name || '';
+        const awayName = m.awayTeam?.name || '';
+        const homeTLA = m.homeTeam?.tla || 'TBD';
+        const awayTLA = m.awayTeam?.tla || 'TBD';
+        const aestTime = formatToAEST(m.utcDate);
+
         const kickoffMs = new Date(m.utcDate).getTime();
         const currentExecutionMs = new Date().getTime();
         const msUntilKickoff = kickoffMs - currentExecutionMs;
         
-        // 48 Hours threshold check
         const isWithin48Hours = msUntilKickoff > 0 && msUntilKickoff <= 172800000;
         
-        // Solid inline CSS badge structure
         const badgeHTML = isWithin48Hours 
           ? `<span style="background-color: #ffc107; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ NEXT 48H</span> `
           : "";
@@ -176,10 +197,9 @@ async function sync() {
       }
     });
 
-    // MIX LIVE SCORES & CLEAN HEADLINES
+    // MIX LIVE SCORES & CLEAN HEADLINES FOR THE TICKER
     const headlines = [];
     const todayStr = new Date().toISOString().split('T')[0];
-
     const todaysMatches = allMatches.filter(m => m.utcDate.startsWith(todayStr));
     const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE');
 
@@ -187,8 +207,8 @@ async function sync() {
       liveMatches.forEach(m => {
         const homeTLA = m.homeTeam?.tla || 'TBD';
         const awayTLA = m.awayTeam?.tla || 'TBD';
-        const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
-        const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
+        const homeScore = m.score?.fullTime?.home ?? 0;
+        const awayScore = m.score?.fullTime?.away ?? 0;
         headlines.push(`🔥 LIVE NOW: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}`);
       });
     } else if (todaysMatches.length > 0) {
@@ -242,7 +262,10 @@ async function sync() {
 
     for (const team of dbTeams) {
       const live = apiTeamsMap[team.country];
-      const nextMatchText = nextMatchMap[team.country] || (live?.eliminated ? "❌ Eliminated" : "TBD");
+      
+      // CHOOSE STATUS: If playing live right now, override completely. Otherwise, fallback to next match calendar.
+      const isCurrentlyPlayingLive = !!liveMatchMap[team.country];
+      const nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || (live?.eliminated ? "❌ Eliminated" : "TBD");
 
       if (live) {
         const isWinner = matchWinnersSet.has(team.country);
@@ -255,18 +278,20 @@ async function sync() {
           stage: stageWeightNum, 
           next_match: nextMatchText,
           notes: tickerPayloadString,
+          notes_bool: isCurrentlyPlayingLive, // Using your existing notes_bool column to track active live status
           updated_at: currentSyncTime
         }).eq('id', team.id);
       } else {
         await supabase.from('world_cup_leaderboard').update({
           next_match: nextMatchText,
           notes: tickerPayloadString,
+          notes_bool: isCurrentlyPlayingLive,
           updated_at: currentSyncTime
         }).eq('id', team.id);
       }
     }
 
-    console.log("🚀 Complete System Sync finished successfully!");
+    console.log("🚀 Complete Live Match & Glow Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
