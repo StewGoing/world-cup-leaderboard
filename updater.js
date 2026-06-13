@@ -194,11 +194,12 @@ async function sync() {
           badgeHTML = `<span style="background-color: #ffc107; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span> `;
         }
 
+        // RESTORED: Using the dot separator format "•" for clean desktop display spacing
         if (homeName && !liveMatchMap[homeName] && !nextMatchMap[homeName]) {
-          nextMatchMap[homeName] = `${badgeHTML}vs ${awayTLA} | ${aestTime}`;
+          nextMatchMap[homeName] = `${badgeHTML}vs ${awayTLA} • ${aestTime}`;
         }
         if (awayName && !liveMatchMap[awayName] && !nextMatchMap[awayName]) {
-          nextMatchMap[awayName] = `${badgeHTML}vs ${homeTLA} | ${aestTime}`;
+          nextMatchMap[awayName] = `${badgeHTML}vs ${homeTLA} • ${aestTime}`;
         }
       }
     });
@@ -251,7 +252,6 @@ async function sync() {
               isEliminated = true;
             }
 
-            // ADDED: Storing goalsFor and goalsAgainst alongside basic metrics
             apiTeamsMap[countryName] = {
               wins: item.won || 0,
               gd: item.goalDifference || 0,
@@ -283,8 +283,8 @@ async function sync() {
         await supabase.from('world_cup_leaderboard').update({
           wins: live.wins,
           gd: live.gd,
-          gf: live.gf, // Saving Goals For
-          ga: live.ga, // Saving Goals Against
+          gf: live.gf, 
+          ga: live.ga, 
           games_played: live.played,
           stage: stageWeightNum, 
           next_match: nextMatchText,
@@ -302,7 +302,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Sync completed with live GF/GA tracking!");
+    console.log("🚀 Complete System Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
