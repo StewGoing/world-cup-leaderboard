@@ -50,11 +50,74 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// HIGH-BANTER LEAGUE COMMENTARY ENGINE (SHORTER, PUNCHIER HEADLINES)
+// ADVANCED ENTERTAINMENT ENGINE: HIGH VARIETY BANTER POOLS (LEAGUE-ONLY VALIDATION)
 function generateDraftCommentary(allMatches, sortedTeams) {
   const commentaryLines = [];
   const currentExecutionMs = new Date().getTime();
-  
+
+  const pickRandom = (array) => array[Math.floor(Math.random() * array.length)];
+
+  const winPool = [
+    "Complete and utter dominance.",
+    "Statement made.",
+    "Leaderboard shaking up.",
+    "Sent them to school.",
+    "Pure tactical masterclass.",
+    "No mercy shown.",
+    "An absolute clinic."
+  ];
+
+  const losePool = [
+    "Back to the drawing board.",
+    "That is going to hurt.",
+    "Disaster class.",
+    "Nowhere to hide after that performance.",
+    "Gravely damaging to the draft campaign.",
+    "Ouch. Time to recalibrate.",
+    "Left exposed at the back."
+  ];
+
+  const drawPool = [
+    "They completely cancel each other out.",
+    "A frustrating stalemate for the campaign.",
+    "Boring. Neither had the bottle to win.",
+    "Two points dropped or one point saved?",
+    "A tight, nervous tactical gridlock.",
+    "Shared points, shared misery."
+  ];
+
+  const livePool = [
+    "Blood pressure rising rapidly.",
+    "Screaming at the television screen intensifies.",
+    "Fingernails completely chewed down.",
+    "Absolute pure drama unfolding right now.",
+    "Big implications on the live draft order here."
+  ];
+
+  const topPool = [
+    "Enjoys the view from the summit. Smells like success.",
+    "Currently looking down on the rest of you peasants.",
+    "Setting the pace. Can anyone actually catch them?",
+    "Comfortable at the top. For now.",
+    "Earning that #1 draft pick pedigree."
+  ];
+
+  const bottomPool = [
+    "Anchors the table. Someone get this man a map.",
+    "Holding onto the wooden spoon with a death grip.",
+    "Stuck in the cellar. SOS signal has been deployed.",
+    "Looking up at the rest of the league. Long way back.",
+    "Currently managing the crisis zone."
+  ];
+
+  const hypePool = [
+    "Massive test incoming. Pray for them.",
+    "Huge stakes on the line. Gents, grab your popcorn.",
+    "A seasonal defining fixture right here.",
+    "Major leaderboard movements hanging in the balance.",
+    "Time to see what they are truly made of."
+  ];
+
   // ==========================================
   // 1. RECENT RESULTS TRACKER (Last 24 Hours)
   // ==========================================
@@ -77,25 +140,47 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const homeManager = sortedTeams.find(t => t.country === homeName)?.manager;
       const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
 
-      // LEAGUE VALIDATION FILTER: Skip match if NEITHER team belongs to your draft group
+      // Skip entirely if no league managers have skin in the game
       if (!homeManager && !awayManager) return;
 
-      const displayHomeManager = homeManager || `${homeTLA}`;
-      const displayAwayManager = awayManager || `${awayTLA}`;
+      // HEAD-TO-HEAD LEAGUE GAME
+      if (homeManager && awayManager) {
+        if (homeScore === awayScore) {
+          commentaryLines.push(
+            `📢 DRAW: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA} • ${homeManager} and ${awayManager} ${pickRandom(drawPool)}`
+          );
+        } else {
+          const winTLA = homeScore > awayScore ? homeTLA : awayTLA;
+          const winManager = homeScore > awayScore ? homeManager : awayManager;
+          const loseManager = homeScore > awayScore ? awayManager : homeManager;
+          const scoreStr = homeScore > awayScore ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
 
-      if (homeScore === awayScore) {
-        commentaryLines.push(
-          `📢 DRAW: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA} • ${displayHomeManager} and ${displayAwayManager} pull each other down. Boring.`
-        );
-      } else {
-        const winnerTLA = homeScore > awayScore ? homeTLA : awayTLA;
-        const winnerManager = homeScore > awayScore ? displayHomeManager : displayAwayManager;
-        const loserManager = homeScore > awayScore ? displayAwayManager : displayHomeManager;
-        const marginText = homeScore > awayScore ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
+          commentaryLines.push(
+            `⚽ RESULT: ${winManager}'s ${winTLA} defeats ${loseManager} ${scoreStr} • ${pickRandom(winPool)}`
+          );
+        }
+      } 
+      // SOLO LEAGUE MANAGER VS UNALLOCATED NATION (Keeps the country code, drops unallocated text)
+      else {
+        const activeManager = homeManager || awayManager;
+        const activeTLA = homeManager ? homeTLA : awayTLA;
+        const oppTLA = homeManager ? awayTLA : homeTLA;
+        const activeScore = homeManager ? homeScore : awayScore;
+        const oppScore = homeManager ? awayScore : homeScore;
 
-        commentaryLines.push(
-          `⚽ CRUSHED: ${winnerManager}'s ${winnerTLA} clears out ${loserManager} ${marginText}. Back to the drawing board.`
-        );
+        if (activeScore === oppScore) {
+          commentaryLines.push(
+            `📢 RESULT: ${activeManager} (${activeTLA}) draws ${activeScore}-${oppScore} against ${oppTLA} • ${pickRandom(drawPool)}`
+          );
+        } else if (activeScore > oppScore) {
+          commentaryLines.push(
+            `⚽ RESULT: Big win for ${activeManager} (${activeTLA}), beating ${oppTLA} ${activeScore}-${oppScore} • ${pickRandom(winPool)}`
+          );
+        } else {
+          commentaryLines.push(
+            `❌ RESULT: Tough loss for ${activeManager} (${activeTLA}), falling ${activeScore}-${oppScore} to ${oppTLA} • ${pickRandom(losePool)}`
+          );
+        }
       }
     });
   }
@@ -119,13 +204,18 @@ function generateDraftCommentary(allMatches, sortedTeams) {
 
       if (!homeManager && !awayManager) return;
 
-      const displayHomeManager = homeManager || `${homeTLA}`;
-      const displayAwayManager = awayManager || `${awayTLA}`;
       const statusSuffix = m.status === 'PAUSED' ? ' (HT)' : '';
-      
-      commentaryLines.push(
-        `🔥 LIVE: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA}${statusSuffix} • Blood pressure rising for ${displayHomeManager} and ${displayAwayManager}...`
-      );
+
+      if (homeManager && awayManager) {
+        commentaryLines.push(
+          `🔥 LIVE MATCH: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA}${statusSuffix} • ${homeManager} vs ${awayManager} is heating up! ${pickRandom(livePool)}`
+        );
+      } else {
+        const managerInGame = homeManager || awayManager;
+        commentaryLines.push(
+          `🔥 LIVE: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA}${statusSuffix} • ${managerInGame} is sweating on this... ${pickRandom(livePool)}`
+        );
+      }
     });
   }
 
@@ -137,8 +227,8 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     const cellar = sortedTeams[sortedTeams.length - 1];
     
     commentaryLines.push(
-      `👑 VIEW FROM THE TOP: ${leader.manager} enjoys the view at #1. Smells like success.`,
-      `🥄 WOODEN SPOON: ${cellar.manager} anchors the table at #12. Someone get this man a map.`
+      `👑 LEADER: ${leader.manager} ${pickRandom(topPool)}`,
+      `🥄 Spoon Watch: ${cellar.manager} ${pickRandom(bottomPool)}`
     );
   }
 
@@ -160,9 +250,11 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
 
       if (homeManager || awayManager) {
-        const primaryTarget = homeManager || awayManager;
+        const homeLabel = homeManager || nextGame.homeTeam?.tla || 'TBD';
+        const awayLabel = awayManager || nextGame.awayTeam?.tla || 'TBD';
+        
         commentaryLines.push(
-          `📅 NEXT UP: ${nextGame.homeTeam?.tla || 'TBD'} vs ${nextGame.awayTeam?.tla || 'TBD'} • Big test incoming for ${primaryTarget}. Pray for them.`
+          `📅 NEXT UP: ${homeLabel} vs ${awayLabel} • ${pickRandom(hypePool)}`
         );
         break; 
       }
@@ -170,7 +262,7 @@ function generateDraftCommentary(allMatches, sortedTeams) {
   }
 
   if (commentaryLines.length === 0) {
-    commentaryLines.push("🏆 World Cup Draft Decider • Hourly calculation sequence active.");
+    commentaryLines.push("🏆 World Cup Draft Decider • Live calculation sequence processing hourly.");
   }
 
   return commentaryLines.join("   •   ");
@@ -303,7 +395,6 @@ async function sync() {
     const { data: dbTeams, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
     if (dbError) throw dbError;
 
-    // Build absolute rank positions inside memory to pass down to ticker generator
     const currentMockSortedTeams = [...dbTeams].map(team => {
       const liveData = apiTeamsMap[team.country] || {};
       return {
@@ -334,8 +425,6 @@ async function sync() {
         await supabase.from('world_cup_leaderboard').update({
           wins: live.wins,
           gd: live.gd,
-          gf: live.gf, 
-          ga: live.ga, 
           games_played: live.played,
           stage: stageWeightNum, 
           next_match: nextMatchText,
