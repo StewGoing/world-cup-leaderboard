@@ -233,7 +233,6 @@
             }
           }
           
-          // EMOJI POSITIONING OPTIMIZATION: Moved '⏱️' badge element marker prefix to the start text node label layout
           const ftBadgeHTML = showFTBadge 
             ? `<span style="background-color: #262626; color: #a3a3a3; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle; border: 1px solid #404040;">⏱️ FT</span>` 
             : '';
@@ -306,13 +305,16 @@
           mCard.className = mobileCardClass;
           mCard.innerHTML = `
             <div class="flex items-center justify-between gap-2">
-              <div class="flex items-center gap-2 min-w-0 flex-1">
+              <!-- MOBILE FIX: flex-nowrap prevents line wrapping, min-w-0 permits sub-containers to clip safely -->
+              <div class="flex items-center gap-2 min-w-0 flex-1 flex-nowrap">
                 <div class="text-sm font-black w-8 h-8 rounded-lg bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner shrink-0 ${pickColor}">#${pick}</div>
                 <div class="min-w-0 flex-1">
                   <p class="font-black text-white tracking-wide text-sm truncate uppercase leading-tight ${isEliminated ? 'text-neutral-400 font-bold' : ''}">${team.manager}</p>
-                  <div class="text-neutral-400 text-xs flex items-center flex-wrap gap-1.5 mt-0.5 font-medium">
+                  
+                  <!-- MOBILE FIX: flex-nowrap locks the country layout container to a single row line, truncate clips name string -->
+                  <div class="text-neutral-400 text-xs flex items-center gap-1.5 mt-0.5 font-medium flex-nowrap min-w-0">
                     <span class="shrink-0 text-base">${team.flag}</span>
-                    <span class="truncate tracking-wider text-xs font-bold uppercase text-neutral-200">${team.country}</span>
+                    <span class="truncate tracking-wider text-xs font-bold uppercase text-neutral-200 min-w-0">${team.country}</span>
                     <span class="text-[9px] px-1.5 py-0.5 bg-neutral-950 rounded font-black uppercase shrink-0 ${isEliminated ? 'text-neutral-500' : stageLabelColor.split(' ')[0]}">${STAGES[team.stage] || "Group"}</span>
                   </div>
                 </div>
