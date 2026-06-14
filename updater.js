@@ -50,66 +50,80 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-async function fetchTopWorldCupStories() {
-  try {
-    const targetQuery = '"FIFA World Cup" -site:gov -site:mil -intitle:tax -intitle:economy';
-    const encodedQuery = encodeURIComponent(targetQuery);
-    
-    const res = await fetch(`https://news.google.com/rss/search?q=${encodedQuery}+when:1d&hl=en-US&gl=US&ceid=US:en`);
-    const xmlText = await res.text();
-    
-    const titleRegex = /<title>(.*?)<\/title>/g;
-    const headlines = [];
-    const processedTopics = [];
-    let match;
-    
-    while ((match = titleRegex.exec(xmlText)) !== null) {
-      let fullTitle = match[1];
+// NEW REPLACEMENT: ENTERTAINING INTERNAL LEADERBOARD COMMENTARY ENGINE
+function generateDraftCommentary(allMatches, sortedTeams) {
+  const commentaryLines = [];
+  
+  // 1. ISOLATE LIVE OR HALF-TIME MATCHES FOR INSTANT HUB TALK
+  const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED');
+  
+  if (liveMatches.length > 0) {
+    liveMatches.forEach(m => {
+      const homeName = m.homeTeam?.name || '';
+      const awayName = m.awayTeam?.name || '';
+      const homeTLA = m.homeTeam?.tla || 'TBD';
+      const awayTLA = m.awayTeam?.tla || 'TBD';
+      const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
+      const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
       
-      if (fullTitle.toLowerCase().includes('google news') || fullTitle.toLowerCase() === 'fifa world cup') {
-        continue;
+      // Match up the active country profiles back to your league managers
+      const homeManager = sortedTeams.find(t => t.country === homeName)?.manager || 'Draft Pack';
+      const awayManager = sortedTeams.find(t => t.country === awayName)?.manager || 'Draft Pack';
+      
+      const statusSuffix = m.status === 'PAUSED' ? ' (HALF-TIME BREAK)' : '';
+      
+      commentaryLines.push(
+        `🔥 LIVE MATCH CENTRE: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}${statusSuffix} • Massive stakes here for ${homeManager} and ${awayManager} right now!`
+      );
+      
+      if (homeScore === awayScore) {
+        commentaryLines.push(`📢 ANALYSIS: ${homeManager} and ${awayManager} are cancelling each other out with a draw as it stands...`);
       }
-
-      fullTitle = fullTitle.replace(/&amp;/g, '&')
-                           .replace(/&quot;/g, '"')
-                           .replace(/&apos;/g, "'")
-                           .replace(/&gt;/g, '>')
-                           .replace(/&lt;/g, '<');
-      
-      let cleanedHeadline = fullTitle;
-      if (fullTitle.includes(' - ')) {
-        cleanedHeadline = fullTitle.substring(0, fullTitle.lastIndexOf(' - ')).trim();
-      }
-
-      const lowercaseHeadline = cleanedHeadline.toLowerCase();
-      const topicKeywords = ["iran", "referee", "ticket", "injured", "squad", "stadium", "visa", "artan", "messi", "ronaldo"];
-      let isDuplicateCluster = false;
-
-      for (const keyword of topicKeywords) {
-        if (lowercaseHeadline.includes(keyword) && processedTopics.includes(keyword)) {
-          isDuplicateCluster = true;
-          break;
-        }
-      }
-
-      if (isDuplicateCluster) continue;
-
-      topicKeywords.forEach(keyword => {
-        if (lowercaseHeadline.includes(keyword)) {
-          processedTopics.push(keyword);
-        }
-      });
-      
-      headlines.push(`⚽ ${cleanedHeadline}`);
-      
-      if (headlines.length >= 3) break;
-    }
-    
-    return headlines;
-  } catch (err) {
-    console.log("⚠️ News summary scraper encountered an issue. Using system fallbacks.");
-    return [];
+    });
   }
+
+  // 2. LIVE LEADERBOARD MACRO STORIES (Who is on top vs who is looking at the wooden spoon)
+  if (sortedTeams.length >= 2) {
+    const leader = sortedTeams[0];
+    const cellar = sortedTeams[sortedTeams.length - 1];
+    
+    commentaryLines.push(
+      `🏆 LEADERBOARD WATCH: ${leader.manager} is currently holding onto the prestigious #1 Draft Pick allocation with ${leader.country}!`,
+      `🥄 SPOON ALARM: ${cellar.manager} is sitting down at the bottom in #12 position... long way back from here!`
+    );
+  }
+
+  // 3. UPCOMING MATCHDAY HYPE LOGIC
+  const currentExecutionMs = new Date().getTime();
+  const upcomingMatches = allMatches.filter(m => {
+    if (m.status !== 'TIMED' && m.status !== 'SCHEDULED') return false;
+    const kickoffMs = new Date(m.utcDate).getTime();
+    const gapMs = kickoffMs - currentExecutionMs;
+    return gapMs > 0 && gapMs <= 86400000; // Next 24 hours window
+  });
+
+  if (upcomingMatches.length > 0) {
+    // Grab the very next match on the schedule to feature
+    const nextGame = upcomingMatches[0];
+    const homeName = nextGame.homeTeam?.name || '';
+    const awayName = nextGame.awayTeam?.name || '';
+    const homeManager = sortedTeams.find(t => t.country === homeName)?.manager;
+    const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
+
+    if (homeManager || awayManager) {
+      const hypeTargets = [homeManager, awayManager].filter(Boolean).join(' vs ');
+      commentaryLines.push(
+        `📅 UPCOMING FIXTURE HYPE: Next up on the schedule is ${hypeTargets}! Good luck out there gents, major leaderboard movements incoming.`
+      );
+    }
+  }
+
+  // Fallback cushion safety checker
+  if (commentaryLines.length === 0) {
+    commentaryLines.push("🏆 World Cup Draft Decider Leaderboard • Updates processing live every hour!");
+  }
+
+  return commentaryLines.join("   •   ");
 }
 
 async function sync() {
@@ -191,10 +205,6 @@ async function sync() {
         let badgeHTML = "";
         if (isWithin48Hours) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
-          
-          // RECONFIGURED BACKGROUND COLORS: 
-          // If > 24 hours out, use low-profile dark grey (#262626) with light grey text (#a3a3a3).
-          // If <= 24 hours out, use high-visibility dark text on bright amber (#ffc107).
           const badgeBgColor = hoursRemaining > 24 ? "#262626" : "#ffc107";
           const badgeTextColor = hoursRemaining > 24 ? "#a3a3a3" : "#000000";
           
@@ -210,40 +220,7 @@ async function sync() {
       }
     });
 
-    // TICKER PAYLOAD SUMMARY GENERATOR
-    const headlines = [];
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todaysMatches = allMatches.filter(m => m.utcDate.startsWith(todayStr));
-    const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED');
-
-    if (liveMatches.length > 0) {
-      liveMatches.forEach(m => {
-        const homeTLA = m.homeTeam?.tla || 'TBD';
-        const awayTLA = m.awayTeam?.tla || 'TBD';
-        const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
-        const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
-        const statusMarker = m.status === 'PAUSED' ? ' (HT)' : '';
-        headlines.push(`🔥 LIVE NOW: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}${statusMarker}`);
-      });
-    } else if (todaysMatches.length > 0) {
-      const matchScheduleText = todaysMatches.map(m => {
-        const homeTLA = m.homeTeam?.tla || 'TBD';
-        const awayTLA = m.awayTeam?.tla || 'TBD';
-        return `${homeTLA} vs ${awayTLA}`;
-      }).join(' | ');
-      headlines.push(`📅 TODAY'S SCHEDULE: ${matchScheduleText}`);
-    }
-
-    console.log("Compiling macro story summaries...");
-    const topStories = await fetchTopWorldCupStories();
-    topStories.forEach(story => headlines.push(story));
-
-    if (headlines.length === 0) {
-      headlines.push("Welcome to the World Cup Draft Decider Leaderboard!");
-    }
-
-    const tickerPayloadString = headlines.join("   •   ");
-
+    // 3. COMPILE INTERMEDIARY LOCAL MAP TO PASS INTO THE COMMENTARY COMPILER
     const apiTeamsMap = {};
     groups.forEach(g => {
       if (g.table) {
@@ -276,9 +253,28 @@ async function sync() {
     const { data: dbTeams, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
     if (dbError) throw dbError;
 
+    // Sort current teams strictly inside memory using same rules as frontend to identify rank 1 vs rank 12
+    const currentMockSortedTeams = [...dbTeams].map(team => {
+      const liveData = apiTeamsMap[team.country] || {};
+      return {
+        ...team,
+        stageWeight: calculateStageWeight(liveData.stageString, liveData.eliminated, liveData.matchStatus, matchWinnersSet.has(team.country)),
+        wins: liveData.wins || 0,
+        gd: liveData.gd || 0
+      };
+    }).sort((a, b) => {
+      if (b.stageWeight !== a.stageWeight) return b.stageWeight - a.stageWeight;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.gd !== a.gd) return b.gd - a.gd;
+      return a.odds - b.odds;
+    });
+
+    // COMPILE DYNAMIC TICKER PAYLOAD STRING
+    const tickerPayloadString = generateDraftCommentary(allMatches, currentMockSortedTeams);
+    console.log("Generated League Commentary Line:", tickerPayloadString);
+
     for (const team of dbTeams) {
       const live = apiTeamsMap[team.country];
-      
       const isCurrentlyPlayingLive = !!liveMatchMap[team.country];
       const nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || (live?.eliminated ? "❌ Eliminated" : "TBD");
 
@@ -289,10 +285,12 @@ async function sync() {
         await supabase.from('world_cup_leaderboard').update({
           wins: live.wins,
           gd: live.gd,
+          gf: live.gf, 
+          ga: live.ga, 
           games_played: live.played,
           stage: stageWeightNum, 
           next_match: nextMatchText,
-          notes: tickerPayloadString,
+          notes: tickerPayloadString, // Pushes custom generated commentary string into Supabase
           notes_bool: isCurrentlyPlayingLive,
           updated_at: currentSyncTime
         }).eq('id', team.id);
@@ -306,7 +304,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Muted Countdown Styles Synced Successfully!");
+    console.log("🚀 Complete League-Commentary Ticker Sync finished successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
