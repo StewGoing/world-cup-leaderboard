@@ -229,7 +229,8 @@
                 </div>
               </div>
             </td>
-            <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(2)}</td>
+            <!-- CHOSEN MODIFICATION: Set precision flag string format from .toFixed(2) down to .toFixed(1) -->
+            <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(1)}</td>
             <td class="py-4 pl-4 pr-8 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td>
           `;
           desktopBody.appendChild(dRow);
