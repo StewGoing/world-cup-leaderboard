@@ -230,29 +230,25 @@
             ? `<span style="background-color: #262626; color: #a3a3a3; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle; border: 1px solid #404040;">⏱️ FT</span>` 
             : '';
 
-          // --- RECENT STATE STYLING ARCHITECTURE ---
+          // --- FIXED FLAT STATE STYLING ENGINE ---
           let winDigitStyle = "text-neutral-200";
           let drawDigitStyle = "text-neutral-500/90 font-medium";
           let recentGDStyle = team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-300';
-          let recentGDBadgeBg = "bg-neutral-950/40 border border-neutral-900";
 
           if (showFTBadge) {
-            // Isolate what happened in the recent game:
             const isNoteDeclaringDraw = team.notes && team.notes.includes(`📢 DRAW: ${team.country.substring(0,3).toUpperCase()}`);
             
             if (isNoteDeclaringDraw || (winsCount === 0 && team.gd === 0)) {
-              // STALEMATE DRAW DETECTED: Illuminate the middle draw block in gold amber
+              // Flat typography layout adjustments for Draw state (No capsule wrapper)
               drawDigitStyle = "text-amber-400 font-extrabold drop-shadow-[0_0_6px_rgba(251,191,36,0.35)]";
-              recentGDStyle = "text-amber-300/90 font-bold";
-              recentGDBadgeBg = "bg-amber-950/20 border border-amber-500/20 rounded-md px-1 py-0.5";
+              recentGDStyle = "text-amber-400 font-bold";
             } else {
-              // DECISIVE WIN DETECTED: Illuminate the win block and goal difference container in vibrant emerald
+              // Flat typography layout adjustments for Win state (No capsule wrapper)
               if (winsCount > 0) {
                 winDigitStyle = "text-emerald-400 font-extrabold drop-shadow-[0_0_6px_rgba(52,211,153,0.4)]";
               }
               if (team.gd > 0) {
-                recentGDStyle = "text-emerald-300 font-black";
-                recentGDBadgeBg = "bg-emerald-950/30 border border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.15)] rounded-md px-1 py-0.5";
+                recentGDStyle = "text-emerald-400 font-black";
               }
             }
           }
@@ -347,9 +343,7 @@
                 
                 <div class="flex flex-col items-center border-l border-neutral-800 pl-1.5 w-8">
                   <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
-                  <div class="${recentGDBadgeBg} mt-0.5 flex items-center justify-center min-w-6">
-                    <span class="text-sm font-black ${recentGDStyle}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
-                  </div>
+                  <span class="text-sm font-black mt-0.5 ${recentGDStyle}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
                 </div>
                 
                 <div class="flex flex-col items-center border-l border-neutral-800 pl-1.5 w-8">
