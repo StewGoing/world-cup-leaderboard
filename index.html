@@ -61,7 +61,7 @@
                 <th class="py-4 px-4 w-52">Manager</th>
                 <th class="py-4 px-4 w-36">Country</th>
                 <th class="py-4 px-4 text-center w-32">Stage</th>
-                <th class="py-4 px-4 text-center w-16">W/P</th>
+                <th class="py-4 px-4 text-center w-20">W/D/L</th>
                 <th class="py-4 px-4 text-center w-24">GD</th>
                 <th class="py-4 px-4 text-center w-14">Odds</th>
                 <th class="py-4 pl-4 pr-16 text-left w-88">Next up (AEST)</th>
@@ -77,7 +77,7 @@
       <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 md:p-6 shadow-xl space-y-5">
         <div>
           <h3 class="text-xs uppercase font-black text-amber-500 tracking-widest border-b border-neutral-800 pb-2 mb-3">Tournament Rules & Tiebreaker Hierarchy</h3>
-          <p class="text-neutral-400 text-xs leading-relaxed mb-4">Draft order is bound to your assigned nation's live performance. Ranks calculate every 60 minutes.</p>
+          <p class="text-neutral-400 text-xs leisure-relaxed mb-4">Draft order is bound to your assigned nation's live performance. Ranks calculate every 60 minutes.</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-[11px] font-mono text-neutral-400">
             <div class="bg-neutral-950/40 p-3 border border-neutral-800/60 rounded-lg"><span class="block text-amber-400 font-bold uppercase text-[10px] mb-1">1. Progress Stage</span>Teams in further knockout brackets completely outrank previously eliminated squads.</div>
             <div class="bg-neutral-950/40 p-3 border border-neutral-800/60 rounded-lg"><span class="block text-amber-400 font-bold uppercase text-[10px] mb-1">2. Match Wins</span>If teams drop out in the same global stage, total absolute match wins decide the position.</div>
@@ -89,7 +89,7 @@
         <div class="border-t border-neutral-800/80 pt-4">
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
-            <div><span class="text-neutral-300 font-bold">W/P:</span> Wins / Matches Played</div>
+            <div><span class="text-neutral-300 font-bold">W/D/L:</span> Wins / Draws / Losses</div>
             <div><span class="text-neutral-300 font-bold">GD:</span> Goal Difference</div>
             <div><span class="text-neutral-300 font-bold">Odds:</span> Pre-tournament baseline bookmaker value</div>
           </div>
@@ -135,22 +135,17 @@
       document.getElementById('sync-status').classList.remove('hidden');
     }
 
-    // ==========================================================
-    // STEP 2 IMPLEMENTATION: PRIVATE TELEMETRY LOGGING ENGINE
-    // ==========================================================
     async function logAnonymousPageView() {
       try {
-        // Creates a consistent, non-identifying hash signature unique to their exact device footprint
+        if (!supabaseClient) return;
         const fingerprint = btoa(navigator.userAgent + navigator.hardwareConcurrency + screen.width);
         const isMobileDevice = window.innerWidth < 768 ? 'Mobile' : 'Desktop';
         
-        // Push a log line blindly into the private backend database schema
         await supabaseClient.from('site_analytics').insert([
           { visitor_hash: fingerprint, device_type: isMobileDevice }
         ]);
       } catch (err) {
-        // Catches errors silently so analytics failures can never block the main table loading
-        console.error("Traffic logging step bypassed:", err);
+        console.error("Traffic log step safely bypassed:", err);
       }
     }
 
@@ -188,8 +183,17 @@
           const isEliminated = team.eliminated;
           const isLive = team.notes_bool === true;
           const matchString = team.next_match || 'TBD';
-          const playedCount = team.games_played || 0;
+          
           const winsCount = team.wins || 0;
+          let drawsCount = 0;
+          let lossesCount = 0;
+
+          // Process and unpack the draws/losses payload structure from games_played
+          if (team.games_played && team.games_played.includes('/')) {
+            const parts = team.games_played.split('/');
+            drawsCount = parseInt(parts[0]) || 0;
+            lossesCount = parseInt(parts[1]) || 0;
+          }
           
           const goalsFor = team.gf || 0;
           const goalsAgainst = team.ga || 0;
@@ -210,7 +214,6 @@
             desktopRowClass = "bg-red-950/15 border-l-4 border-red-500 transition hover:bg-red-950/25 animate-[pulse_3s_infinite]";
           }
 
-          // Compact mobile container padding tracking classes maintained
           let mobileCardClass = `pt-3 pb-2 px-3.5 flex flex-col gap-2 transition duration-200 ${isEliminated ? 'opacity-20 bg-neutral-950/40' : 'bg-neutral-900'}`;
           if (isLive && !isEliminated) {
             mobileCardClass = "pt-3 pb-2 px-3.5 flex flex-col gap-2 bg-red-950/20 border-l-4 border-red-500 animate-[pulse_3s_infinite]";
@@ -231,7 +234,11 @@
                 ${STAGES[team.stage]} ${isEliminated ? '❌' : '🏁'}
               </span>
             </td>
-            <td class="py-4 px-4 text-center font-mono text-neutral-400 text-sm font-semibold">${winsCount}/${playedCount}</td>
+            
+            <td class="py-4 px-4 text-center font-mono text-sm font-bold whitespace-nowrap tracking-wide">
+              <span class="text-neutral-100">${winsCount}</span><span class="text-neutral-600 font-sans mx-px text-xs">/</span><span class="text-neutral-500">${drawsCount}</span><span class="text-neutral-600 font-sans mx-px text-xs">/</span><span class="text-neutral-500">${lossesCount}</span>
+            </td>
+            
             <td class="py-4 px-4 font-mono">
               <div class="flex items-center justify-center gap-2">
                 <span class="font-black text-sm w-5 text-right ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">
@@ -280,10 +287,14 @@
               </div>
               
               <div class="flex items-center gap-3 font-mono shrink-0 select-none text-center">
-                <div class="flex flex-col items-center w-8">
-                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W/P</span>
-                  <span class="text-sm text-neutral-300 font-bold mt-0.5">${winsCount}/${playedCount}</span>
+                
+                <div class="flex flex-col items-center w-12">
+                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W/D/L</span>
+                  <span class="text-xs font-bold mt-0.5 whitespace-nowrap tracking-wide">
+                    <span class="text-neutral-200">${winsCount}</span><span class="text-neutral-600 font-sans mx-px text-[10px]">/</span><span class="text-neutral-500">${drawsCount}</span><span class="text-neutral-600 font-sans mx-px text-[10px]">/</span><span class="text-neutral-500">${lossesCount}</span>
+                  </span>
                 </div>
+                
                 <div class="flex flex-col items-center border-l border-neutral-800 pl-2.5 w-10">
                   <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
                   <span class="text-sm font-black mt-0.5 ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
@@ -313,9 +324,9 @@
       }
     }
 
-    // Initialize data structures and telemetry tracking sequentially on window execution
-    loadLeaderboard();
-    logAnonymousPageView();
+    loadLeaderboard().then(() => {
+      logAnonymousPageView();
+    });
   </script>
 </body>
 </html>
