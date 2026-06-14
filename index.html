@@ -92,10 +92,11 @@
           </div>
         </div>
 
+        <!-- FIXED DEFINITION LABELS: Updated to match your primary hyphen formatting standard -->
         <div class="border-t border-neutral-800/80 pt-4">
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
-            <div><span class="text-neutral-300 font-bold">W-D-L:</span> Wins / Draws / Losses</div>
+            <div><span class="text-neutral-300 font-bold">W-D-L:</span> Wins - Draws - Losses</div>
             <div><span class="text-neutral-300 font-bold">GD:</span> Goal Difference</div>
             <div><span class="text-neutral-300 font-bold">Odds:</span> Pre-tournament baseline bookmaker value</div>
           </div>
@@ -227,7 +228,7 @@
             mobileCardClass = "pt-3 pb-2 px-3.5 flex flex-col gap-2 bg-red-950/20 border-l-4 border-red-500 animate-[pulse_3s_infinite]";
           }
 
-          // --- DESKTOP RENDER ---
+          // --- DESKTOP RENDER (UNIFIED TYPOGRAPHY ALIGNMENT) ---
           const dRow = document.createElement('tr');
           dRow.className = desktopRowClass;
           dRow.innerHTML = `
@@ -244,12 +245,12 @@
             </td>
             
             <td class="py-4 px-4 text-center font-mono text-sm font-bold whitespace-nowrap tracking-wide">
-              <span class="text-neutral-100">${winsCount}</span><span class="text-neutral-500 font-sans mx-px text-xs">-</span><span class="text-neutral-500">${drawsCount}</span><span class="text-neutral-500 font-sans mx-px text-xs">-</span><span class="text-neutral-500">${lossesCount}</span>
+              <span class="text-neutral-200">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${lossesCount}</span>
             </td>
             
             <td class="py-4 px-4 font-mono">
               <div class="flex items-center justify-center gap-2">
-                <span class="font-black text-sm w-5 text-right ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">
+                <span class="font-bold text-sm w-5 text-right ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-300'}">
                   ${team.gd > 0 ? '+' + team.gd : team.gd}
                 </span>
                 <div class="flex flex-col text-left text-[9px] font-sans font-bold text-neutral-500/90 leading-tight border-l border-neutral-800/80 pl-2 shrink-0 select-none">
@@ -258,7 +259,8 @@
                 </div>
               </div>
             </td>
-            <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(1)}</td>
+            
+            <td class="py-4 px-4 text-center font-mono text-neutral-300 text-sm font-bold">${Number(team.odds).toFixed(1)}</td>
             <td class="py-4 pl-4 pr-16 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td>
           `;
           desktopBody.appendChild(dRow);
@@ -294,7 +296,6 @@
                 </div>
               </div>
               
-              <!-- TIGHTENED & OPTIMIZED COLUMN LAYOUT WITH MUTED HYPHEN RECORDS -->
               <div class="flex items-center gap-2 font-mono shrink-0 select-none text-center">
                 <div class="flex flex-col items-center w-11">
                   <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W-D-L</span>
