@@ -6,6 +6,7 @@ const FOOTBALL_DATA_API_KEY = process.env.FOOTBALL_DATA_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// RECONFIGURED DATE STRING FORMAT ENGINE (Order: Day, Date, Time)
 function formatToAEST(utcString) {
   if (!utcString) return '';
   const date = new Date(utcString);
@@ -50,7 +51,7 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// UPGRADED COMMENTARY ENGINE: Tracks live action, upcoming previews, rankings, AND 24-hour match results
+// UPGRADED COMMENTARY ENGINE: Tracks live action, upcoming previews, rankings, AND 24-hour match results (League Only Validation)
 function generateDraftCommentary(allMatches, sortedTeams) {
   const commentaryLines = [];
   const currentExecutionMs = new Date().getTime();
@@ -62,7 +63,6 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     if (m.status !== 'FINISHED') return false;
     const matchEndMs = new Date(m.utcDate).getTime();
     const gapMs = currentExecutionMs - matchEndMs;
-    // Catch matches completed within the last 24 hours (with buffer)
     return gapMs > 0 && gapMs <= (86400000 + 7200000); 
   });
 
@@ -75,22 +75,29 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const homeScore = m.score?.fullTime?.home ?? 0;
       const awayScore = m.score?.fullTime?.away ?? 0;
 
-      // Map country identifiers back to fantasy league managers
-      const homeManager = sortedTeams.find(t => t.country === homeName)?.manager || 'Draft Pack';
-      const awayManager = sortedTeams.find(t => t.country === awayName)?.manager || 'Draft Pack';
+      // Find if league managers own these countries
+      const homeManager = sortedTeams.find(t => t.country === homeName)?.manager;
+      const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
+
+      // LEAGUE VALIDATION FILTER: Skip the match entirely if NEITHER team belongs to your draft group
+      if (!homeManager && !awayManager) return;
+
+      // Fallbacks if one side is unallocated (e.g., playing an unpicked country)
+      const displayHomeManager = homeManager || `${homeTLA} (Unallocated)`;
+      const displayAwayManager = awayManager || `${awayTLA} (Unallocated)`;
 
       if (homeScore === awayScore) {
         commentaryLines.push(
-          `📢 JUST IN: ${homeTLA} v ${awayTLA} ends in a ${homeScore}-${awayScore} draw! ${homeManager} and ${awayManager} cancel each other out on the leaderboard.`
+          `📢 JUST IN: ${homeTLA} v ${awayTLA} ends in a ${homeScore}-${awayScore} draw! ${displayHomeManager} and ${displayAwayManager} split the points.`
         );
       } else {
         const winnerTLA = homeScore > awayScore ? homeTLA : awayTLA;
-        const winnerManager = homeScore > awayScore ? homeManager : awayManager;
-        const loserManager = homeScore > awayScore ? awayManager : homeManager;
+        const winnerManager = homeScore > awayScore ? displayHomeManager : displayAwayManager;
+        const loserManager = homeScore > awayScore ? displayAwayManager : displayHomeManager;
         const marginText = homeScore > awayScore ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
 
         commentaryLines.push(
-          `⚽ RESULT CENTRE: ${winnerManager}'s ${winnerTLA} secures a massive victory, defeating ${loserManager} ${marginText}! Leaderboard shaking up...`
+          `⚽ RESULT CENTRE: ${winnerManager} secures a massive victory, defeating ${loserManager} ${marginText}! Leaderboard shaking up...`
         );
       }
     });
@@ -110,13 +117,18 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
       const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
       
-      const homeManager = sortedTeams.find(t => t.country === homeName)?.manager || 'Draft Pack';
-      const awayManager = sortedTeams.find(t => t.country === awayName)?.manager || 'Draft Pack';
-      
+      const homeManager = sortedTeams.find(t => t.country === homeName)?.manager;
+      const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
+
+      // LEAGUE VALIDATION FILTER: Skip live matches if no one in your league has skin in the game
+      if (!homeManager && !awayManager) return;
+
+      const displayHomeManager = homeManager || `${homeTLA}`;
+      const displayAwayManager = awayManager || `${awayTLA}`;
       const statusSuffix = m.status === 'PAUSED' ? ' (HALF-TIME BREAK)' : '';
       
       commentaryLines.push(
-        `🔥 LIVE MATCH CENTRE: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}${statusSuffix} • Massive stakes here for ${homeManager} and ${awayManager} right now!`
+        `🔥 LIVE MATCH CENTRE: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}${statusSuffix} • Massive stakes here for ${displayHomeManager} and ${displayAwayManager} right now!`
       );
     });
   }
@@ -145,17 +157,20 @@ function generateDraftCommentary(allMatches, sortedTeams) {
   });
 
   if (upcomingMatches.length > 0) {
-    const nextGame = upcomingMatches[0];
-    const homeName = nextGame.homeTeam?.name || '';
-    const awayName = nextGame.awayTeam?.name || '';
-    const homeManager = sortedTeams.find(t => t.country === homeName)?.manager;
-    const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
+    // Loop through upcoming games until we find one that features a league manager
+    for (const nextGame of upcomingMatches) {
+      const homeName = nextGame.homeTeam?.name || '';
+      const awayName = nextGame.awayTeam?.name || '';
+      const homeManager = sortedTeams.find(t => t.country === homeName)?.manager;
+      const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
 
-    if (homeManager || awayManager) {
-      const hypeTargets = [homeManager, awayManager].filter(Boolean).join(' vs ');
-      commentaryLines.push(
-        `📅 UPCOMING FIXTURE HYPE: Next up on the schedule is ${hypeTargets}! Good luck out there gents, major leaderboard movements incoming.`
-      );
+      if (homeManager || awayManager) {
+        const hypeTargets = [homeManager, awayManager].filter(Boolean).join(' vs ');
+        commentaryLines.push(
+          `📅 UPCOMING FIXTURE HYPE: Next up on the schedule is ${hypeTargets}! Good luck out there gents, major leaderboard movements incoming.`
+        );
+        break; // Only feature the single most imminent relevant game to avoid ticker bloating
+      }
     }
   }
 
@@ -245,6 +260,10 @@ async function sync() {
         let badgeHTML = "";
         if (isWithin48Hours) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
+          
+          // RECONFIGURED BACKGROUND COLORS: 
+          // If > 24 hours out, use low-profile dark grey (#262626) with light grey text (#a3a3a3).
+          // If <= 24 hours out, use high-visibility dark text on bright amber (#ffc107).
           const badgeBgColor = hoursRemaining > 24 ? "#262626" : "#ffc107";
           const badgeTextColor = hoursRemaining > 24 ? "#a3a3a3" : "#000000";
           
@@ -324,6 +343,8 @@ async function sync() {
         await supabase.from('world_cup_leaderboard').update({
           wins: live.wins,
           gd: live.gd,
+          gf: live.gf, 
+          ga: live.ga, 
           games_played: live.played,
           stage: stageWeightNum, 
           next_match: nextMatchText,
