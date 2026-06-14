@@ -27,6 +27,7 @@
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
+  <!-- SMOOTH-ANIMATED NEWS TICKER TRAY -->
   <div class="max-w-5xl mx-auto mb-4 bg-neutral-900/80 border border-neutral-800/60 rounded-lg overflow-hidden h-7 flex items-center shadow-lg">
     <div class="bg-amber-500 text-neutral-950 text-[9px] font-black uppercase tracking-widest px-3 h-full flex items-center z-10 shrink-0 select-none shadow-md">News</div>
     <div class="ticker-wrap w-full font-mono text-[11px] text-neutral-300 font-semibold relative">
@@ -34,6 +35,7 @@
     </div>
   </div>
 
+  <!-- Header Layout -->
   <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 flex flex-col md:flex-row md:justify-between items-center md:items-end gap-3 text-center md:text-left">
     <div>
       <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
@@ -50,9 +52,11 @@
       Connecting to Cloud Standings...
     </div>
 
+    <!-- Main Table Container Layout -->
     <div id="board-wrapper" class="hidden space-y-6">
       <div class="bg-neutral-900 border border-neutral-800 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl">
         
+        <!-- DESKTOP SCREEN GRIDS -->
         <div class="hidden md:block overflow-x-auto">
           <table class="w-full text-left border-collapse table-fixed max-w-5xl">
             <thead>
@@ -64,15 +68,18 @@
                 <th class="py-4 px-4 text-center w-16">W/P</th>
                 <th class="py-4 px-4 text-center w-24">GD</th>
                 <th class="py-4 px-4 text-center w-14">Odds</th>
-                <th class="py-4 pl-4 pr-16 text-left w-88">Next up (AEST)</th> </tr>
+                <th class="py-4 pl-4 pr-16 text-left w-88">Next up (AEST)</th>
+              </tr>
             </thead>
             <tbody id="desktop-rows" class="divide-y divide-neutral-800/40"></tbody>
           </table>
         </div>
 
+        <!-- RESPONSIVE MOBILE CELL LIST STACKS -->
         <div id="mobile-list" class="block md:hidden divide-y divide-neutral-800/60 bg-neutral-900"></div>
       </div>
 
+      <!-- BOTTOM RULE LEGEND BOX -->
       <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 md:p-6 shadow-xl space-y-5">
         <div>
           <h3 class="text-xs uppercase font-black text-amber-500 tracking-widest border-b border-neutral-800 pb-2 mb-3">Tournament Rules & Tiebreaker Hierarchy</h3>
@@ -223,7 +230,8 @@
               </div>
             </td>
             <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(1)}</td>
-            <td class="py-4 pl-4 pr-16 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td> `;
+            <td class="py-4 pl-4 pr-16 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td>
+          `;
           desktopBody.appendChild(dRow);
 
           // --- MOBILE BADGE PLACEMENT PROCESSING ---
@@ -273,10 +281,13 @@
               </div>
             </div>
             
-            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex items-center text-[10px] font-mono">
-              ${badgeHTMLSnippet}
-              <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider shrink-0 text-[9px]">Next up:</span>
-              <span class="text-amber-500 font-semibold text-right flex-1 ml-1.5 truncate">${cleanMatchString}</span>
+            <!-- OPTIMIZED MOBILE FOOTER TRAY: Set to text-right layout and switched color to a muted text-neutral-400 -->
+            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[10px] font-mono">
+              <div class="flex items-center shrink-0">
+                ${badgeHTMLSnippet}
+                <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider text-[9px]">Next up:</span>
+              </div>
+              <span class="text-neutral-400 font-semibold text-right flex-1 ml-3 truncate">${cleanMatchString}</span>
             </div>
           `;
           mobileContainer.appendChild(mCard);
