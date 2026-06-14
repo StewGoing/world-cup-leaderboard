@@ -211,7 +211,7 @@
           if (team.stage === 7) stageLabelColor = 'text-orange-400 border-orange-500/20';
           if (team.stage === 11 || team.stage === 6) stageLabelColor = 'text-purple-400 border-purple-500/30 bg-purple-950/20 animate-pulse';
 
-          // --- ROBUST COLUMNS CLOCK EVALUATION ---
+          // --- EXTENDED ROBUST COLUMNS CLOCK EVALUATION ---
           let showFTBadge = false;
           const hasActiveLiveOrCountdown = matchString.includes('data-badge="live"') || matchString.includes('data-badge="countdown"');
           
@@ -220,18 +220,17 @@
             const now = new Date();
             const hoursSinceMatch = (now - lastWhistleTime) / 1000 / 60 / 60;
             
-            // Explicitly assert the 12-hour full-time window baseline
-            if (hoursSinceMatch >= 0 && hoursSinceMatch <= 12) {
+            // WINDOW SET TO 24 HOURS FOR VISUAL PERSISTENCE
+            if (hoursSinceMatch >= 0 && hoursSinceMatch <= 24) {
               showFTBadge = true;
             }
           }
           
-          // Subtle borderless format
           const ftBadgeHTML = showFTBadge 
             ? `<span style="background-color: #262626; color: #a3a3a3; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⏱️ FT</span>` 
             : '';
 
-          // --- STABLE STRATEGIC TYPOGRAPHY MATRIX ---
+          // --- STRATEGIC TYPOGRAPHY HIGHLIGHTING MATRIX ---
           let winDigitStyle = "text-neutral-200";
           let drawDigitStyle = "text-neutral-500/90 font-medium";
           let lossDigitStyle = "text-neutral-500/90 font-medium";
