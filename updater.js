@@ -50,11 +50,55 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// NEW REPLACEMENT: ENTERTAINING INTERNAL LEADERBOARD COMMENTARY ENGINE
+// UPGRADED COMMENTARY ENGINE: Tracks live action, upcoming previews, rankings, AND 24-hour match results
 function generateDraftCommentary(allMatches, sortedTeams) {
   const commentaryLines = [];
+  const currentExecutionMs = new Date().getTime();
   
-  // 1. ISOLATE LIVE OR HALF-TIME MATCHES FOR INSTANT HUB TALK
+  // ==========================================
+  // 1. RECENT RESULTS TRACKER (Last 24 Hours)
+  // ==========================================
+  const recentFinishedMatches = allMatches.filter(m => {
+    if (m.status !== 'FINISHED') return false;
+    const matchEndMs = new Date(m.utcDate).getTime();
+    const gapMs = currentExecutionMs - matchEndMs;
+    // Catch matches completed within the last 24 hours (with buffer)
+    return gapMs > 0 && gapMs <= (86400000 + 7200000); 
+  });
+
+  if (recentFinishedMatches.length > 0) {
+    recentFinishedMatches.forEach(m => {
+      const homeName = m.homeTeam?.name || '';
+      const awayName = m.awayTeam?.name || '';
+      const homeTLA = m.homeTeam?.tla || 'TBD';
+      const awayTLA = m.awayTeam?.tla || 'TBD';
+      const homeScore = m.score?.fullTime?.home ?? 0;
+      const awayScore = m.score?.fullTime?.away ?? 0;
+
+      // Map country identifiers back to fantasy league managers
+      const homeManager = sortedTeams.find(t => t.country === homeName)?.manager || 'Draft Pack';
+      const awayManager = sortedTeams.find(t => t.country === awayName)?.manager || 'Draft Pack';
+
+      if (homeScore === awayScore) {
+        commentaryLines.push(
+          `📢 JUST IN: ${homeTLA} v ${awayTLA} ends in a ${homeScore}-${awayScore} draw! ${homeManager} and ${awayManager} cancel each other out on the leaderboard.`
+        );
+      } else {
+        const winnerTLA = homeScore > awayScore ? homeTLA : awayTLA;
+        const winnerManager = homeScore > awayScore ? homeManager : awayManager;
+        const loserManager = homeScore > awayScore ? awayManager : homeManager;
+        const marginText = homeScore > awayScore ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
+
+        commentaryLines.push(
+          `⚽ RESULT CENTRE: ${winnerManager}'s ${winnerTLA} secures a massive victory, defeating ${loserManager} ${marginText}! Leaderboard shaking up...`
+        );
+      }
+    });
+  }
+
+  // ==========================================
+  // 2. LIVE OR HALF-TIME MATCHES (Active Now)
+  // ==========================================
   const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED');
   
   if (liveMatches.length > 0) {
@@ -66,7 +110,6 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
       const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
       
-      // Match up the active country profiles back to your league managers
       const homeManager = sortedTeams.find(t => t.country === homeName)?.manager || 'Draft Pack';
       const awayManager = sortedTeams.find(t => t.country === awayName)?.manager || 'Draft Pack';
       
@@ -75,14 +118,12 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       commentaryLines.push(
         `🔥 LIVE MATCH CENTRE: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}${statusSuffix} • Massive stakes here for ${homeManager} and ${awayManager} right now!`
       );
-      
-      if (homeScore === awayScore) {
-        commentaryLines.push(`📢 ANALYSIS: ${homeManager} and ${awayManager} are cancelling each other out with a draw as it stands...`);
-      }
     });
   }
 
-  // 2. LIVE LEADERBOARD MACRO STORIES (Who is on top vs who is looking at the wooden spoon)
+  // ==========================================
+  // 3. LIVE LEADERBOARD WATCH (Rank 1 vs Rank 12)
+  // ==========================================
   if (sortedTeams.length >= 2) {
     const leader = sortedTeams[0];
     const cellar = sortedTeams[sortedTeams.length - 1];
@@ -93,17 +134,17 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     );
   }
 
-  // 3. UPCOMING MATCHDAY HYPE LOGIC
-  const currentExecutionMs = new Date().getTime();
+  // ==========================================
+  // 4. UPCOMING MATCHDAY HYPE (Next 24 Hours)
+  // ==========================================
   const upcomingMatches = allMatches.filter(m => {
     if (m.status !== 'TIMED' && m.status !== 'SCHEDULED') return false;
     const kickoffMs = new Date(m.utcDate).getTime();
     const gapMs = kickoffMs - currentExecutionMs;
-    return gapMs > 0 && gapMs <= 86400000; // Next 24 hours window
+    return gapMs > 0 && gapMs <= 86400000;
   });
 
   if (upcomingMatches.length > 0) {
-    // Grab the very next match on the schedule to feature
     const nextGame = upcomingMatches[0];
     const homeName = nextGame.homeTeam?.name || '';
     const awayName = nextGame.awayTeam?.name || '';
@@ -118,7 +159,6 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     }
   }
 
-  // Fallback cushion safety checker
   if (commentaryLines.length === 0) {
     commentaryLines.push("🏆 World Cup Draft Decider Leaderboard • Updates processing live every hour!");
   }
@@ -220,7 +260,7 @@ async function sync() {
       }
     });
 
-    // 3. COMPILE INTERMEDIARY LOCAL MAP TO PASS INTO THE COMMENTARY COMPILER
+    // PASS 3: Intermediate internal data mapping
     const apiTeamsMap = {};
     groups.forEach(g => {
       if (g.table) {
@@ -253,7 +293,7 @@ async function sync() {
     const { data: dbTeams, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
     if (dbError) throw dbError;
 
-    // Sort current teams strictly inside memory using same rules as frontend to identify rank 1 vs rank 12
+    // Build absolute rank positions inside memory to pass down to ticker generator
     const currentMockSortedTeams = [...dbTeams].map(team => {
       const liveData = apiTeamsMap[team.country] || {};
       return {
@@ -269,7 +309,6 @@ async function sync() {
       return a.odds - b.odds;
     });
 
-    // COMPILE DYNAMIC TICKER PAYLOAD STRING
     const tickerPayloadString = generateDraftCommentary(allMatches, currentMockSortedTeams);
     console.log("Generated League Commentary Line:", tickerPayloadString);
 
@@ -285,12 +324,10 @@ async function sync() {
         await supabase.from('world_cup_leaderboard').update({
           wins: live.wins,
           gd: live.gd,
-          gf: live.gf, 
-          ga: live.ga, 
           games_played: live.played,
           stage: stageWeightNum, 
           next_match: nextMatchText,
-          notes: tickerPayloadString, // Pushes custom generated commentary string into Supabase
+          notes: tickerPayloadString,
           notes_bool: isCurrentlyPlayingLive,
           updated_at: currentSyncTime
         }).eq('id', team.id);
