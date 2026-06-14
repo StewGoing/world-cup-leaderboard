@@ -1,5 +1,5 @@
-const { createClient } = require('@supabase/supabase-js');
-const axios = require('axios');
+import { createClient } from '@supabase/supabase-js';
+import axios from 'axios';
 
 // Initialize Supabase Client
 const supabase = createClient(
@@ -21,7 +21,7 @@ async function updateLeagueLeaderboard() {
       { headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY } }
     );
 
-    // 2. Pull your current manager draft tracking table from Supabase (FIXED SYNTAX)
+    // 2. Pull your current manager draft tracking table from Supabase
     const { data: managers, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
 
     if (dbError) throw dbError;
