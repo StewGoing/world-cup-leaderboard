@@ -58,20 +58,20 @@
         
         <!-- DESKTOP SCREEN GRIDS -->
         <div class="hidden md:block overflow-x-auto">
-          <table class="w-full text-left border-collapse table-fixed max-w-5xl">
+          <table class="w-full text-left border-collapse max-w-5xl">
             <thead>
-              <tr class="bg-neutral-950 text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-800">
-                <th class="py-4 px-4 text-center w-16">Pick</th>
-                <th class="py-4 px-4 w-48">Manager</th> <!-- WIDENED to fix name clipping -->
-                <th class="py-4 px-4 w-36">Country</th> <!-- SHORTENED HEADER & OPTIMIZED WIDTH -->
-                <th class="py-4 px-4 text-center w-28">Stage</th>
-                <th class="py-4 px-4 text-center w-16">W/P</th>
+              <tr class="bg-neutral-950 text-[10px] uppercase font-black tracking-widest text-neutral-500 border-b border-neutral-800">
+                <th class="py-4 px-4 text-center w-20">Pick</th>
+                <th class="py-4 px-4 w-52">Manager</th>
+                <th class="py-4 px-4 w-40">Country</th>
+                <th class="py-4 px-4 text-center w-32">Stage</th>
+                <th class="py-4 px-4 text-center w-20">W/P</th>
                 <th class="py-4 px-4 text-center w-24">GD</th>
-                <th class="py-4 px-4 text-center w-16">Odds</th>
-                <th class="py-4 px-5 text-left w-64">Next up (AEST)</th> <!-- EXPANDED FIXED WIDTH to stop time cut-offs -->
+                <th class="py-4 px-4 text-center w-20">Odds</th>
+                <th class="py-4 pl-4 pr-8 text-left w-72">Next up (AEST)</th> <!-- POLISHED: Added right padding and expanded layout container -->
               </tr>
             </thead>
-            <tbody id="desktop-rows" class="divide-y divide-neutral-800/60"></tbody>
+            <tbody id="desktop-rows" class="divide-y divide-neutral-800/40"></tbody>
           </table>
         </div>
 
@@ -192,9 +192,9 @@
           if (team.stage === 7) stageLabelColor = 'text-orange-400 border-orange-500/20';
           if (team.stage === 11 || team.stage === 6) stageLabelColor = 'text-purple-400 border-purple-500/30 bg-purple-950/20 animate-pulse';
 
-          let desktopRowClass = `transition hover:bg-neutral-800/20 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
+          let desktopRowClass = `transition hover:bg-neutral-800/15 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
           if (isLive && !isEliminated) {
-            desktopRowClass = "bg-red-950/20 border-l-4 border-red-500 transition hover:bg-red-950/30 animate-[pulse_3s_infinite]";
+            desktopRowClass = "bg-red-950/15 border-l-4 border-red-500 transition hover:bg-red-950/25 animate-[pulse_3s_infinite]";
           }
 
           let mobileCardClass = `p-4 flex flex-col gap-2.5 ${isEliminated ? 'opacity-35 bg-neutral-950/30' : 'bg-neutral-900'}`;
@@ -206,9 +206,9 @@
           const dRow = document.createElement('tr');
           dRow.className = desktopRowClass;
           dRow.innerHTML = `
-            <td class="py-4 px-4 text-center font-black text-base ${pickColor}">#${pick}</td>
-            <td class="py-4 px-4 font-extrabold text-white tracking-wide text-sm truncate">${team.manager}</td>
-            <td class="py-4 px-4 text-neutral-200 text-sm truncate">
+            <td class="py-4 px-4 text-center font-black text-sm md:text-base ${pickColor}">#${pick}</td>
+            <td class="py-4 px-4 font-extrabold text-neutral-100 tracking-wide text-sm truncate">${team.manager}</td>
+            <td class="py-4 px-4 text-neutral-300 text-sm truncate">
               <span class="text-xl mr-2 inline-block align-middle">${team.flag}</span>
               <span class="align-middle uppercase tracking-wider text-xs font-bold">${team.country}</span>
             </td>
@@ -218,19 +218,19 @@
               </span>
             </td>
             <td class="py-4 px-4 text-center font-mono text-neutral-400 text-sm font-semibold">${winsCount}/${playedCount}</td>
-            <td class="py-4 px-4 text-center font-mono">
+            <td class="py-4 px-4 font-mono">
               <div class="flex items-center justify-center gap-2">
-                <span class="font-bold text-sm ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">
+                <span class="font-black text-sm w-5 text-right ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">
                   ${team.gd > 0 ? '+' + team.gd : team.gd}
                 </span>
-                <div class="flex flex-col text-left text-[9px] font-sans font-semibold text-neutral-500 leading-tight border-l border-neutral-800 pl-1.5 shrink-0 select-none">
+                <div class="flex flex-col text-left text-[9px] font-sans font-bold text-neutral-500/90 leading-tight border-l border-neutral-800/80 pl-2 shrink-0 select-none">
                   <span>F: ${goalsFor}</span>
                   <span>A: ${goalsAgainst}</span>
                 </div>
               </div>
             </td>
             <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(2)}</td>
-            <td class="py-4 px-5 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td>
+            <td class="py-4 pl-4 pr-8 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td>
           `;
           desktopBody.appendChild(dRow);
 
@@ -277,7 +277,7 @@
               </div>
             </div>
             
-            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2 py-1.5 flex items-center text-[10px] font-mono">
+            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex items-center text-[10px] font-mono">
               ${badgeHTMLSnippet}
               <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider shrink-0 text-[9px]">Next up:</span>
               <span class="text-amber-500 font-semibold text-right flex-1 ml-1.5 truncate">${cleanMatchString}</span>
