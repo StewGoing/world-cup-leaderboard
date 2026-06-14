@@ -92,6 +92,7 @@
           </div>
         </div>
 
+        <!-- DEFINITION LABELS -->
         <div class="border-t border-neutral-800/80 pt-4">
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
@@ -227,7 +228,7 @@
             mobileCardClass = "pt-3 pb-2 px-3.5 flex flex-col gap-2 bg-red-950/20 border-l-4 border-red-500 animate-[pulse_3s_infinite]";
           }
 
-          // --- DESKTOP RENDER (GEOMETRICALLY CORRECT UNIFORM MONOSPACE) ---
+          // --- DESKTOP RENDER (OPTICALLY TUNED COLUMNS) ---
           const dRow = document.createElement('tr');
           dRow.className = desktopRowClass;
           dRow.innerHTML = `
@@ -244,12 +245,12 @@
             </td>
             
             <td class="py-4 px-4 text-center font-mono text-sm font-bold whitespace-nowrap tracking-wide">
-              <span class="text-neutral-200 font-extrabold">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${lossesCount}</span>
+              <span class="text-neutral-200">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${lossesCount}</span>
             </td>
             
-            <td class="py-4 px-4 font-mono text-sm font-bold text-neutral-300">
+            <td class="py-4 px-4 font-mono">
               <div class="flex items-center justify-center gap-2">
-                <span class="w-5 text-right ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-300'}">
+                <span class="font-bold text-sm w-5 text-right ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-300'}">
                   ${team.gd > 0 ? '+' + team.gd : team.gd}
                 </span>
                 <div class="flex flex-col text-left text-[9px] font-sans font-bold text-neutral-500/90 leading-tight border-l border-neutral-800/80 pl-2 shrink-0 select-none">
@@ -259,10 +260,25 @@
               </div>
             </td>
             
-            <td class="py-4 px-4 text-center font-mono text-neutral-300 text-sm font-bold">${Number(team.odds).toFixed(1)}</td>
+            <!-- OPTICAL ADJUSTMENT: Added tracking-tight to pull layout sizing into an identical footprint -->
+            <td class="py-4 px-4 text-center font-mono text-neutral-300 text-sm font-bold tracking-tight">${Number(team.odds).toFixed(1)}</td>
             <td class="py-4 pl-4 pr-16 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td>
           `;
           desktopBody.appendChild(dRow);
+
+          // --- MOBILE BADGE PLACEMENT PROCESSING ---
+          let badgeHTMLSnippet = "";
+          let cleanMatchString = matchString;
+
+          if (matchString.includes('<span')) {
+            const closingSpanIndex = matchString.indexOf('</span>') + 7;
+            badgeHTMLSnippet = matchString.substring(0, closingSpanIndex);
+            cleanMatchString = matchString.substring(closingSpanIndex).trim();
+          }
+          
+          if (badgeHTMLSnippet !== "") {
+            badgeHTMLSnippet = badgeHTMLSnippet.replace('font-size: 11px;', 'font-size: 10px;');
+          }
 
           // --- MOBILE RENDER ---
           const mCard = document.createElement('div');
