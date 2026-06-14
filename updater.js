@@ -21,9 +21,8 @@ async function updateLeagueLeaderboard() {
       { headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY } }
     );
 
-    // 2. Pull your current manager draft tracking table from Supabase
-    const { data: managers, error: dbError } = await supabase
-      = await supabase.from('world_cup_leaderboard').select('*');
+    // 2. Pull your current manager draft tracking table from Supabase (FIXED SYNTAX)
+    const { data: managers, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
 
     if (dbError) throw dbError;
 
