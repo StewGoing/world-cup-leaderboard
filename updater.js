@@ -252,6 +252,9 @@ async function sync() {
     const matchWinnersSet = new Set();
     const liveMatchMap = {};
 
+    // Map to quickly cross-reference a team's most recently finished game object
+    const lastFinishedMatchMap = {};
+
     allMatches.forEach(m => {
       const homeName = m.homeTeam?.name || '';
       const awayName = m.awayTeam?.name || '';
@@ -270,6 +273,10 @@ async function sync() {
       if (m.status === 'FINISHED') {
         const winner = m.score.winner === 'HOME_TEAM' ? homeName : m.score.winner === 'AWAY_TEAM' ? awayName : null;
         if (winner) matchWinnersSet.add(winner);
+
+        // Keep track of the latest finished game for home and away countries to extract robust delta histories
+        if (homeName) lastFinishedMatchMap[homeName] = m;
+        if (awayName) lastFinishedMatchMap[awayName] = m;
       }
 
       if (m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED') {
@@ -327,7 +334,6 @@ async function sync() {
             let isEliminated = false;
             if (g.table.indexOf(item) >= 2 && liveStage === 'GROUP_STAGE') isEliminated = true;
 
-            // TRACKING UPGRADE: Storing separate values for wins, draws, and losses
             apiTeamsMap[countryName] = {
               wins: item.won || 0,
               draws: item.draw || 0,
@@ -377,20 +383,49 @@ async function sync() {
       const live = apiTeamsMap[team.country];
       const nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || (live?.eliminated ? "❌ Eliminated" : "TBD");
 
+      // Robust structured data column calculation variables
+      let dbMatchTime = null;
+      let dbMatchResult = null;
+      let dbMatchGDChange = 0;
+
+      const lastGame = lastFinishedMatchMap[team.country];
+      if (lastGame) {
+        dbMatchTime = lastGame.utcDate; // Log structural end whistle point safely
+        
+        const isHome = lastGame.homeTeam.name === team.country;
+        const homeScore = lastGame.score.fullTime.home ?? 0;
+        const awayScore = lastGame.score.fullTime.away ?? 0;
+        
+        // Map individual game metrics precisely
+        if (homeScore === awayScore) {
+          dbMatchResult = 'DRAW';
+          dbMatchGDChange = 0;
+        } else if ((isHome && homeScore > awayScore) || (!isHome && awayScore > homeScore)) {
+          dbMatchResult = 'WIN';
+          dbMatchGDChange = isHome ? (homeScore - awayScore) : (awayScore - homeScore);
+        } else {
+          dbMatchResult = 'LOSS';
+          dbMatchGDChange = isHome ? (homeScore - awayScore) : (awayScore - homeScore); // Negative delta integer
+        }
+      }
+
       if (live) {
         const isWinner = matchWinnersSet.has(team.country);
         const stageWeightNum = calculateStageWeight(live.stageString, live.eliminated, live.matchStatus, isWinner);
 
-        // DATA MAP ALIGNMENT: Passing draws and losses as text into your games_played string slots
         await supabase.from('world_cup_leaderboard').update({
           wins: live.wins,
-          games_played: `${live.draws}/${live.losses}`, // Store extra metrics compactly inside games_played string placeholder
+          games_played: `${live.draws}/${live.losses}`, 
           gd: live.gd,
           stage: stageWeightNum, 
           next_match: nextMatchText,
           notes: tickerPayloadString,
           notes_bool: isAnyLeagueTeamCurrentlyLive, 
-          updated_at: currentSyncTimeISO
+          updated_at: currentSyncTimeISO,
+          // --- STRUCTURAL COLUMNS COMMITTED SECURELY ---
+          last_match_time: dbMatchTime,
+          last_match_result: dbMatchResult,
+          last_match_gd_change: dbMatchGDChange
         }).eq('id', team.id);
       } else {
         await supabase.from('world_cup_leaderboard').update({
