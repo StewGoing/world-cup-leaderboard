@@ -50,7 +50,6 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// ADVANCED ENTERTAINMENT ENGINE: HIGH VARIETY BANTER POOLS (LEAGUE-ONLY VALIDATION)
 function generateDraftCommentary(allMatches, sortedTeams) {
   const commentaryLines = [];
   const currentExecutionMs = new Date().getTime();
@@ -58,69 +57,43 @@ function generateDraftCommentary(allMatches, sortedTeams) {
   const pickRandom = (array) => array[Math.floor(Math.random() * array.length)];
 
   const winPool = [
-    "Complete and utter dominance.",
-    "Statement made.",
-    "Leaderboard shaking up.",
-    "Sent them to school.",
-    "Pure tactical masterclass.",
-    "No mercy shown.",
-    "An absolute clinic."
+    "Complete and utter dominance.", "Statement made.", "Leaderboard shaking up.",
+    "Sent them to school.", "Pure tactical masterclass.", "No mercy shown.", "An absolute clinic."
   ];
 
   const losePool = [
-    "Back to the drawing board.",
-    "That is going to hurt.",
-    "Disaster class.",
-    "Nowhere to hide after that performance.",
-    "Gravely damaging to the draft campaign.",
-    "Ouch. Time to recalibrate.",
-    "Left exposed at the back."
+    "Back to the drawing board.", "That is going to hurt.", "Disaster class.",
+    "Nowhere to hide after that performance.", "Gravely damaging to the draft campaign.",
+    "Ouch. Time to recalibrate.", "Left exposed at the back."
   ];
 
   const drawPool = [
-    "They completely cancel each other out.",
-    "A frustrating stalemate for the campaign.",
-    "Boring. Neither had the bottle to win.",
-    "Two points dropped or one point saved?",
-    "A tight, nervous tactical gridlock.",
-    "Shared points, shared misery."
+    "They completely cancel each other out.", "A frustrating stalemate for the campaign.",
+    "Boring. Neither had the bottle to win.", "Two points dropped or one point saved?",
+    "A tight, nervous tactical gridlock.", "Shared points, shared misery."
   ];
 
   const livePool = [
-    "Blood pressure rising rapidly.",
-    "Screaming at the television screen intensifies.",
-    "Fingernails completely chewed down.",
-    "Absolute pure drama unfolding right now.",
+    "Blood pressure rising rapidly.", "Screaming at the television screen intensifies.",
+    "Fingernails completely chewed down.", "Absolute pure drama unfolding right now.",
     "Big implications on the live draft order here."
   ];
 
   const topPool = [
-    "Enjoys the view from the summit. Smells like success.",
-    "Currently looking down on the rest of you peasants.",
-    "Setting the pace. Can anyone actually catch them?",
-    "Comfortable at the top. For now.",
-    "Earning that #1 draft pick pedigree."
+    "Enjoys the view from the summit. Smells like success.", "Currently looking down on the rest of you peasants.",
+    "Setting the pace. Can anyone actually catch them?", "Comfortable at the top. For now.", "Earning that #1 draft pick pedigree."
   ];
 
   const bottomPool = [
-    "Anchors the table. Someone get this man a map.",
-    "Holding onto the wooden spoon with a death grip.",
-    "Stuck in the cellar. SOS signal has been deployed.",
-    "Looking up at the rest of the league. Long way back.",
-    "Currently managing the crisis zone."
+    "Anchors the table. Someone get this man a map.", "Holding onto the wooden spoon with a death grip.",
+    "Stuck in the cellar. SOS signal has been deployed.", "Looking up at the rest of the league. Long way back.", "Currently managing the crisis zone."
   ];
 
-  const hypePool = [
-    "Massive test incoming. Pray for them.",
-    "Huge stakes on the line. Gents, grab your popcorn.",
-    "A seasonal defining fixture right here.",
-    "Major leaderboard movements hanging in the balance.",
-    "Time to see what they are truly made of."
+  const fontHypePool = [
+    "Massive test incoming. Pray for them.", "Huge stakes on the line. Gents, grab your popcorn.",
+    "A seasonal defining fixture right here.", "Major leaderboard movements hanging in the balance.", "Time to see what they are truly made of."
   ];
 
-  // ==========================================
-  // 1. RECENT RESULTS TRACKER (Last 24 Hours)
-  // ==========================================
   const recentFinishedMatches = allMatches.filter(m => {
     if (m.status !== 'FINISHED') return false;
     const matchEndMs = new Date(m.utcDate).getTime();
@@ -140,28 +113,19 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const homeManager = sortedTeams.find(t => t.country === homeName)?.manager;
       const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
 
-      // Skip entirely if no league managers have skin in the game
       if (!homeManager && !awayManager) return;
 
-      // HEAD-TO-HEAD LEAGUE GAME
       if (homeManager && awayManager) {
         if (homeScore === awayScore) {
-          commentaryLines.push(
-            `📢 DRAW: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA} • ${homeManager} and ${awayManager} ${pickRandom(drawPool)}`
-          );
+          commentaryLines.push(`📢 DRAW: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA} • ${homeManager} and ${awayManager} ${pickRandom(drawPool)}`);
         } else {
           const winTLA = homeScore > awayScore ? homeTLA : awayTLA;
           const winManager = homeScore > awayScore ? homeManager : awayManager;
           const loseManager = homeScore > awayScore ? awayManager : homeManager;
           const scoreStr = homeScore > awayScore ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
-
-          commentaryLines.push(
-            `⚽ RESULT: ${winManager}'s ${winTLA} defeats ${loseManager} ${scoreStr} • ${pickRandom(winPool)}`
-          );
+          commentaryLines.push(`⚽ RESULT: ${winManager}'s ${winTLA} defeats ${loseManager} ${scoreStr} • ${pickRandom(winPool)}`);
         }
-      } 
-      // SOLO LEAGUE MANAGER VS UNALLOCATED NATION (Keeps the country code, drops unallocated text)
-      else {
+      } else {
         const activeManager = homeManager || awayManager;
         const activeTLA = homeManager ? homeTLA : awayTLA;
         const oppTLA = homeManager ? awayTLA : homeTLA;
@@ -169,25 +133,16 @@ function generateDraftCommentary(allMatches, sortedTeams) {
         const oppScore = homeManager ? awayScore : homeScore;
 
         if (activeScore === oppScore) {
-          commentaryLines.push(
-            `📢 RESULT: ${activeManager} (${activeTLA}) draws ${activeScore}-${oppScore} against ${oppTLA} • ${pickRandom(drawPool)}`
-          );
+          commentaryLines.push(`📢 RESULT: ${activeManager} (${activeTLA}) draws ${activeScore}-${oppScore} against ${oppTLA} • ${pickRandom(drawPool)}`);
         } else if (activeScore > oppScore) {
-          commentaryLines.push(
-            `⚽ RESULT: Big win for ${activeManager} (${activeTLA}), beating ${oppTLA} ${activeScore}-${oppScore} • ${pickRandom(winPool)}`
-          );
+          commentaryLines.push(`⚽ RESULT: Big win for ${activeManager} (${activeTLA}), beating ${oppTLA} ${activeScore}-${oppScore} • ${pickRandom(winPool)}`);
         } else {
-          commentaryLines.push(
-            `❌ RESULT: Tough loss for ${activeManager} (${activeTLA}), falling ${activeScore}-${oppScore} to ${oppTLA} • ${pickRandom(losePool)}`
-          );
+          commentaryLines.push(`❌ RESULT: Tough loss for ${activeManager} (${activeTLA}), falling ${activeScore}-${oppScore} to ${oppTLA} • ${pickRandom(losePool)}`);
         }
       }
     });
   }
 
-  // ==========================================
-  // 2. LIVE OR HALF-TIME MATCHES (Active Now)
-  // ==========================================
   const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED');
   
   if (liveMatches.length > 0) {
@@ -207,34 +162,20 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const statusSuffix = m.status === 'PAUSED' ? ' (HT)' : '';
 
       if (homeManager && awayManager) {
-        commentaryLines.push(
-          `🔥 LIVE MATCH: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA}${statusSuffix} • ${homeManager} vs ${awayManager} is heating up! ${pickRandom(livePool)}`
-        );
+        commentaryLines.push(`🔥 LIVE MATCH: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA}${statusSuffix} • ${homeManager} vs ${awayManager} is heating up! ${pickRandom(livePool)}`);
       } else {
         const managerInGame = homeManager || awayManager;
-        commentaryLines.push(
-          `🔥 LIVE: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA}${statusSuffix} • ${managerInGame} is sweating on this... ${pickRandom(livePool)}`
-        );
+        commentaryLines.push(`🔥 LIVE: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA}${statusSuffix} • ${managerInGame} is sweating on this... ${pickRandom(livePool)}`);
       }
     });
   }
 
-  // ==========================================
-  // 3. LIVE LEADERBOARD WATCH (Rank 1 vs Rank 12)
-  // ==========================================
   if (sortedTeams.length >= 2) {
     const leader = sortedTeams[0];
     const cellar = sortedTeams[sortedTeams.length - 1];
-    
-    commentaryLines.push(
-      `👑 LEADER: ${leader.manager} ${pickRandom(topPool)}`,
-      `🥄 Spoon Watch: ${cellar.manager} ${pickRandom(bottomPool)}`
-    );
+    commentaryLines.push(`👑 LEADER: ${leader.manager} ${pickRandom(topPool)}`, `🥄 Spoon Watch: ${cellar.manager} ${pickRandom(bottomPool)}`);
   }
 
-  // ==========================================
-  // 4. UPCOMING MATCHDAY HYPE (Next 24 Hours)
-  // ==========================================
   const upcomingMatches = allMatches.filter(m => {
     if (m.status !== 'TIMED' && m.status !== 'SCHEDULED') return false;
     const kickoffMs = new Date(m.utcDate).getTime();
@@ -252,10 +193,7 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       if (homeManager || awayManager) {
         const homeLabel = homeManager || nextGame.homeTeam?.tla || 'TBD';
         const awayLabel = awayManager || nextGame.awayTeam?.tla || 'TBD';
-        
-        commentaryLines.push(
-          `📅 NEXT UP: ${homeLabel} vs ${awayLabel} • ${pickRandom(hypePool)}`
-        );
+        commentaryLines.push(`📅 NEXT UP: ${homeLabel} vs ${awayLabel} • ${pickRandom(fontHypePool)}`);
         break; 
       }
     }
@@ -270,9 +208,31 @@ function generateDraftCommentary(allMatches, sortedTeams) {
 
 async function sync() {
   try {
-    const currentSyncTime = new Date().toISOString();
+    const currentSyncTime = new Date();
+    const currentSyncTimeISO = currentSyncTime.toISOString();
 
-    console.log("Bulk fetching live standings dataset...");
+    console.log("Checking current live flag state in database...");
+    const { data: flagCheck, error: flagError } = await supabase
+      .from('world_cup_leaderboard')
+      .select('notes_bool, updated_at')
+      .limit(1);
+
+    if (flagError) throw flagError;
+
+    if (flagCheck && flagCheck.length > 0) {
+      const isLeagueActivelyPlaying = flagCheck[0].notes_bool === true;
+      const lastUpdate = new Date(flagCheck[0].updated_at);
+      
+      const msSinceLastUpdate = currentSyncTime.getTime() - lastUpdate.getTime();
+      const minutesSinceLastUpdate = msSinceLastUpdate / 1000 / 60;
+
+      if (!isLeagueActivelyPlaying && minutesSinceLastUpdate < 55) {
+        console.log(`💤 Smart Exit: No live league matches active. Last sync was ${Math.floor(minutesSinceLastUpdate)}m ago. Skipping run.`);
+        return; 
+      }
+    }
+
+    console.log("Heartbeat verified or hourly sequence hit. Fetching standings...");
     const standingsRes = await fetch('https://api.football-data.org/v4/competitions/WC/standings', {
       headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY }
     });
@@ -292,7 +252,6 @@ async function sync() {
     const matchWinnersSet = new Set();
     const liveMatchMap = {};
 
-    // PASS 1: Isolate active live matches
     allMatches.forEach(m => {
       const homeName = m.homeTeam?.name || '';
       const awayName = m.awayTeam?.name || '';
@@ -320,16 +279,11 @@ async function sync() {
         const liveLabelText = m.status === 'PAUSED' ? "🔥 LIVE (HT)" : "🔥 LIVE";
         const liveBadgeHTML = `<span data-badge="live" style="background-color: #ef4444; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">${liveLabelText}</span>`;
 
-        if (homeName) {
-          liveMatchMap[homeName] = `${liveBadgeHTML}vs ${awayTLA} (${homeScore} - ${awayScore})`;
-        }
-        if (awayName) {
-          liveMatchMap[awayName] = `${liveBadgeHTML}vs ${homeTLA} (${awayScore} - ${homeScore})`;
-        }
+        if (homeName) liveMatchMap[homeName] = `${liveBadgeHTML}vs ${awayTLA} (${homeScore} - ${awayScore})`;
+        if (awayName) liveMatchMap[awayName] = `${liveBadgeHTML}vs ${homeTLA} (${awayScore} - ${homeScore})`;
       }
     });
 
-    // PASS 2: Gather future schedules
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         const homeName = m.homeTeam?.name || '';
@@ -349,7 +303,6 @@ async function sync() {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
           const badgeBgColor = hoursRemaining > 24 ? "#262626" : "#ffc107";
           const badgeTextColor = hoursRemaining > 24 ? "#a3a3a3" : "#000000";
-          
           badgeHTML = `<span data-badge="countdown" style="background-color: ${badgeBgColor}; color: ${badgeTextColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
@@ -362,7 +315,6 @@ async function sync() {
       }
     });
 
-    // PASS 3: Intermediate internal data mapping
     const apiTeamsMap = {};
     groups.forEach(g => {
       if (g.table) {
@@ -373,12 +325,13 @@ async function sync() {
             const currentStatus = teamMatchStatusMap[countryName] || 'TIMED';
             
             let isEliminated = false;
-            if (g.table.indexOf(item) >= 2 && liveStage === 'GROUP_STAGE') {
-              isEliminated = true;
-            }
+            if (g.table.indexOf(item) >= 2 && liveStage === 'GROUP_STAGE') isEliminated = true;
 
+            // TRACKING UPGRADE: Storing separate values for wins, draws, and losses
             apiTeamsMap[countryName] = {
               wins: item.won || 0,
+              draws: item.draw || 0,
+              losses: item.lost || 0,
               gd: item.goalDifference || 0,
               gf: item.goalsFor || 0,
               ga: item.goalsAgainst || 0,
@@ -394,6 +347,13 @@ async function sync() {
 
     const { data: dbTeams, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
     if (dbError) throw dbError;
+
+    let isAnyLeagueTeamCurrentlyLive = false;
+    dbTeams.forEach(team => {
+      if (liveMatchMap[team.country] && !apiTeamsMap[team.country]?.eliminated) {
+        isAnyLeagueTeamCurrentlyLive = true;
+      }
+    });
 
     const currentMockSortedTeams = [...dbTeams].map(team => {
       const liveData = apiTeamsMap[team.country] || {};
@@ -415,34 +375,34 @@ async function sync() {
 
     for (const team of dbTeams) {
       const live = apiTeamsMap[team.country];
-      const isCurrentlyPlayingLive = !!liveMatchMap[team.country];
       const nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || (live?.eliminated ? "❌ Eliminated" : "TBD");
 
       if (live) {
         const isWinner = matchWinnersSet.has(team.country);
         const stageWeightNum = calculateStageWeight(live.stageString, live.eliminated, live.matchStatus, isWinner);
 
+        // DATA MAP ALIGNMENT: Passing draws and losses as text into your games_played string slots
         await supabase.from('world_cup_leaderboard').update({
           wins: live.wins,
+          games_played: `${live.draws}/${live.losses}`, // Store extra metrics compactly inside games_played string placeholder
           gd: live.gd,
-          games_played: live.played,
           stage: stageWeightNum, 
           next_match: nextMatchText,
           notes: tickerPayloadString,
-          notes_bool: isCurrentlyPlayingLive,
-          updated_at: currentSyncTime
+          notes_bool: isAnyLeagueTeamCurrentlyLive, 
+          updated_at: currentSyncTimeISO
         }).eq('id', team.id);
       } else {
         await supabase.from('world_cup_leaderboard').update({
           next_match: nextMatchText,
           notes: tickerPayloadString,
-          notes_bool: isCurrentlyPlayingLive,
-          updated_at: currentSyncTime
+          notes_bool: isAnyLeagueTeamCurrentlyLive,
+          updated_at: currentSyncTimeISO
         }).eq('id', team.id);
       }
     }
 
-    console.log("🚀 Complete League-Commentary Ticker Sync finished successfully!");
+    console.log(`🚀 Sync finalized. Global Live state set to: ${isAnyLeagueTeamCurrentlyLive}`);
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
