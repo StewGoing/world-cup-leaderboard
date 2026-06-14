@@ -233,9 +233,8 @@
             }
           }
           
-          // VISUAL REFINEMENT: Stripped out the 1px neutral border completely to make the badge blend subtly with the layout background
           const ftBadgeHTML = showFTBadge 
-            ? `<span style="background-color: #262626; color: #a3a3a3; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⏱️ FT</span>` 
+            ? `<span style="background-color: #262626; color: #a3a3a3; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle; border: 1px solid #404040;">⏱️ FT</span>` 
             : '';
 
           // --- POLISHED STATE STYLING ENGINE ---
@@ -250,12 +249,15 @@
             const isNoteDeclaringLoss = team.notes && team.notes.includes(`❌ RESULT: Tough loss for`) && team.notes.includes(`(${cleanTLA})`);
             
             if (isNoteDeclaringLoss) {
+              // 1. FRESH LOSS STATE: Turn the loss digit and negative GD cell flat rose red
               lossDigitStyle = "text-rose-400 font-extrabold drop-shadow-[0_0_6px_rgba(244,63,94,0.35)]";
               recentGDStyle = "text-rose-400 font-black";
             } else if (isNoteDeclaringDraw || (winsCount === 0 && team.gd === 0)) {
+              // 2. STALEMATE DRAW STATE: Turn the middle draw digit amber gold
               drawDigitStyle = "text-amber-400 font-extrabold drop-shadow-[0_0_6px_rgba(251,191,36,0.35)]";
               recentGDStyle = "text-amber-400 font-bold";
             } else {
+              // 3. DECISIVE WIN STATE: Turn the win digit and positive GD cell emerald green
               if (winsCount > 0) {
                 winDigitStyle = "text-emerald-400 font-extrabold drop-shadow-[0_0_6px_rgba(52,211,153,0.4)]";
               }
