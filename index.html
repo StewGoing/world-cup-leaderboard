@@ -92,7 +92,7 @@
           </div>
         </div>
 
-        <!-- FIXED DEFINITION LABELS: Updated to match your primary hyphen formatting standard -->
+        <!-- DEFINITION LABELS -->
         <div class="border-t border-neutral-800/80 pt-4">
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
@@ -228,7 +228,7 @@
             mobileCardClass = "pt-3 pb-2 px-3.5 flex flex-col gap-2 bg-red-950/20 border-l-4 border-red-500 animate-[pulse_3s_infinite]";
           }
 
-          // --- DESKTOP RENDER (UNIFIED TYPOGRAPHY ALIGNMENT) ---
+          // --- DESKTOP RENDER (OPTICALLY TUNED COLUMNS) ---
           const dRow = document.createElement('tr');
           dRow.className = desktopRowClass;
           dRow.innerHTML = `
@@ -260,7 +260,8 @@
               </div>
             </td>
             
-            <td class="py-4 px-4 text-center font-mono text-neutral-300 text-sm font-bold">${Number(team.odds).toFixed(1)}</td>
+            <!-- OPTICAL ADJUSTMENT: Added tracking-tight to pull layout sizing into an identical footprint -->
+            <td class="py-4 px-4 text-center font-mono text-neutral-300 text-sm font-bold tracking-tight">${Number(team.odds).toFixed(1)}</td>
             <td class="py-4 pl-4 pr-16 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td>
           `;
           desktopBody.appendChild(dRow);
