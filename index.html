@@ -27,7 +27,6 @@
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
-  <!-- SMOOTH-ANIMATED NEWS TICKER TRAY -->
   <div class="max-w-5xl mx-auto mb-4 bg-neutral-900/80 border border-neutral-800/60 rounded-lg overflow-hidden h-7 flex items-center shadow-lg">
     <div class="bg-amber-500 text-neutral-950 text-[9px] font-black uppercase tracking-widest px-3 h-full flex items-center z-10 shrink-0 select-none shadow-md">News</div>
     <div class="ticker-wrap w-full font-mono text-[11px] text-neutral-300 font-semibold relative">
@@ -35,7 +34,6 @@
     </div>
   </div>
 
-  <!-- Header Layout -->
   <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 flex flex-col md:flex-row md:justify-between items-center md:items-end gap-3 text-center md:text-left">
     <div>
       <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
@@ -52,11 +50,9 @@
       Connecting to Cloud Standings...
     </div>
 
-    <!-- Main Table Container Layout -->
     <div id="board-wrapper" class="hidden space-y-6">
       <div class="bg-neutral-900 border border-neutral-800 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl">
         
-        <!-- DESKTOP SCREEN GRIDS -->
         <div class="hidden md:block overflow-x-auto">
           <table class="w-full text-left border-collapse table-fixed max-w-5xl">
             <thead>
@@ -75,11 +71,9 @@
           </table>
         </div>
 
-        <!-- RESPONSIVE MOBILE CELL LIST STACKS -->
         <div id="mobile-list" class="block md:hidden divide-y divide-neutral-800/60 bg-neutral-900"></div>
       </div>
 
-      <!-- BOTTOM RULE LEGEND BOX -->
       <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 md:p-6 shadow-xl space-y-5">
         <div>
           <h3 class="text-xs uppercase font-black text-amber-500 tracking-widest border-b border-neutral-800 pb-2 mb-3">Tournament Rules & Tiebreaker Hierarchy</h3>
@@ -92,7 +86,6 @@
           </div>
         </div>
 
-        <!-- DEFINITION LABELS -->
         <div class="border-t border-neutral-800/80 pt-4">
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
@@ -237,27 +230,20 @@
             ? `<span style="background-color: #262626; color: #a3a3a3; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle; border: 1px solid #404040;">⏱️ FT</span>` 
             : '';
 
-          // --- POLISHED STATE STYLING ENGINE ---
+          // --- FIXED FLAT STATE STYLING ENGINE ---
           let winDigitStyle = "text-neutral-200";
           let drawDigitStyle = "text-neutral-500/90 font-medium";
-          let lossDigitStyle = "text-neutral-500/90 font-medium";
           let recentGDStyle = team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-300';
 
           if (showFTBadge) {
-            const cleanTLA = team.country.substring(0,3).toUpperCase();
-            const isNoteDeclaringDraw = team.notes && team.notes.includes(`📢 DRAW: ${cleanTLA}`);
-            const isNoteDeclaringLoss = team.notes && team.notes.includes(`❌ RESULT: Tough loss for`) && team.notes.includes(`(${cleanTLA})`);
+            const isNoteDeclaringDraw = team.notes && team.notes.includes(`📢 DRAW: ${team.country.substring(0,3).toUpperCase()}`);
             
-            if (isNoteDeclaringLoss) {
-              // 1. FRESH LOSS STATE: Turn the loss digit and negative GD cell flat rose red
-              lossDigitStyle = "text-rose-400 font-extrabold drop-shadow-[0_0_6px_rgba(244,63,94,0.35)]";
-              recentGDStyle = "text-rose-400 font-black";
-            } else if (isNoteDeclaringDraw || (winsCount === 0 && team.gd === 0)) {
-              // 2. STALEMATE DRAW STATE: Turn the middle draw digit amber gold
+            if (isNoteDeclaringDraw || (winsCount === 0 && team.gd === 0)) {
+              // Flat typography layout adjustments for Draw state (No capsule wrapper)
               drawDigitStyle = "text-amber-400 font-extrabold drop-shadow-[0_0_6px_rgba(251,191,36,0.35)]";
               recentGDStyle = "text-amber-400 font-bold";
             } else {
-              // 3. DECISIVE WIN STATE: Turn the win digit and positive GD cell emerald green
+              // Flat typography layout adjustments for Win state (No capsule wrapper)
               if (winsCount > 0) {
                 winDigitStyle = "text-emerald-400 font-extrabold drop-shadow-[0_0_6px_rgba(52,211,153,0.4)]";
               }
@@ -265,6 +251,16 @@
                 recentGDStyle = "text-emerald-400 font-black";
               }
             }
+          }
+
+          let desktopRowClass = `transition hover:bg-neutral-800/15 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
+          if (isLive && matchString.includes('data-badge="live"')) {
+            desktopRowClass = "bg-red-950/15 border-l-4 border-red-500 transition hover:bg-red-950/25 animate-[pulse_3s_infinite]";
+          }
+
+          let mobileCardClass = `pt-3 pb-2 px-3.5 flex flex-col gap-2 transition duration-200 ${isEliminated ? 'opacity-20 bg-neutral-950/40' : 'bg-neutral-900'}`;
+          if (isLive && matchString.includes('data-badge="live"')) {
+            mobileCardClass = "pt-3 pb-2 px-3.5 flex flex-col gap-2 bg-red-950/20 border-l-4 border-red-500 animate-[pulse_3s_infinite]";
           }
 
           // --- DESKTOP RENDER ---
@@ -284,7 +280,7 @@
             </td>
             
             <td class="py-4 px-4 text-center font-mono text-sm font-bold whitespace-nowrap tracking-wide">
-              <span class="${winDigitStyle}">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${drawDigitStyle}">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${lossDigitStyle}">${lossesCount}</span>
+              <span class="${winDigitStyle}">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${drawDigitStyle}">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${lossesCount}</span>
             </td>
             
             <td class="py-4 px-4 font-mono">
@@ -341,7 +337,7 @@
                 <div class="flex flex-col items-center w-11">
                   <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W-D-L</span>
                   <span class="text-sm font-bold mt-0.5 whitespace-nowrap tracking-tighter">
-                    <span class="${winDigitStyle}">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${drawDigitStyle}">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${lossDigitStyle}">${lossesCount}</span>
+                    <span class="${winDigitStyle}">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${drawDigitStyle}">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${lossesCount}</span>
                   </span>
                 </div>
                 
