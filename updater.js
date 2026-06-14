@@ -6,25 +6,21 @@ const FOOTBALL_DATA_API_KEY = process.env.FOOTBALL_DATA_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// RECONFIGURED DATE STRING FORMAT ENGINE (Order: Day, Date, Time)
 function formatToAEST(utcString) {
   if (!utcString) return '';
   const date = new Date(utcString);
   
-  // 1. Day of the week (e.g., "Tue")
   const dayPart = date.toLocaleDateString('en-AU', {
     timeZone: 'Australia/Sydney',
     weekday: 'short'
   });
 
-  // 2. Numerical calendar date (e.g., "16/06")
   const datePart = date.toLocaleDateString('en-AU', {
     timeZone: 'Australia/Sydney',
     day: '2-digit',
     month: '2-digit'
   });
 
-  // 3. Kick-off time at the end (e.g., "2:00am")
   const timePart = date.toLocaleTimeString('en-AU', {
     timeZone: 'Australia/Sydney',
     hour: 'numeric',
@@ -165,8 +161,9 @@ async function sync() {
         const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
         const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
         
-        const liveLabelText = m.status === 'PAUSED' ? "🔥 LIVE (HT)" : "🔥 LIVE NOW";
-        const liveBadgeHTML = `<span style="background-color: #ef4444; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">${liveLabelText}</span> `;
+        // MODIFICATION: Shortened from "🔥 LIVE NOW" to just "🔥 LIVE" to preserve space
+        const liveLabelText = m.status === 'PAUSED' ? "🔥 LIVE (HT)" : "🔥 LIVE";
+        const liveBadgeHTML = `<span data-badge="live" style="background-color: #ef4444; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">${liveLabelText}</span>`;
 
         if (homeName) {
           liveMatchMap[homeName] = `${liveBadgeHTML}vs ${awayTLA} (${homeScore} - ${awayScore})`;
@@ -195,7 +192,10 @@ async function sync() {
         let badgeHTML = "";
         if (isWithin48Hours) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
-          badgeHTML = `<span style="background-color: #ffc107; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span> `;
+          
+          // MODIFICATION: If countdown is between 24 and 48 hours, render a faint yellow bg (#fef08a). Otherwise use bright amber (#ffc107)
+          const badgeBgColor = hoursRemaining > 24 ? "#fef08a" : "#ffc107";
+          badgeHTML = `<span data-badge="countdown" style="background-color: ${badgeBgColor}; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
         if (homeName && !liveMatchMap[homeName] && !nextMatchMap[homeName]) {
