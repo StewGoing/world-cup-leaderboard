@@ -182,21 +182,7 @@
           const goalsAgainst = team.ga || 0;
           
           let pickColor = 'text-amber-500';
-          let badgeBorderColor = 'border-neutral-800'; 
-          
-          // CHANGE 5: Metallic border styling preserved around elite draft seeds
-          if (pick === 1) {
-            pickColor = 'text-emerald-400 font-black';
-            badgeBorderColor = 'border-emerald-500/40 bg-emerald-950/20';
-          }
-          if (pick === 2) {
-            pickColor = 'text-amber-500 font-black';
-            badgeBorderColor = 'border-amber-500/30 bg-amber-950/10';
-          }
-          if (pick === 3) {
-            pickColor = 'text-amber-600 font-black';
-            badgeBorderColor = 'border-amber-600/30 bg-amber-950/10';
-          }
+          if (pick === 1) pickColor = 'text-emerald-400 font-black';
           if (pick === 12) pickColor = 'text-rose-500 font-black';
 
           let stageLabelColor = 'text-amber-400 border-amber-500/20';
@@ -211,11 +197,10 @@
             desktopRowClass = "bg-red-950/15 border-l-4 border-red-500 transition hover:bg-red-950/25 animate-[pulse_3s_infinite]";
           }
 
-          // CHANGE 2 & 4 ADJUSTMENT: Card overall padding dropped to pt-3 pb-2 px-3.5 (Compact Mode) 
-          // Container background scales opacity down to 20% if eliminated (Visual Knockout Tints)
-          let mobileCardClass = `pt-3 pb-2 px-3.5 flex flex-col gap-2 transition duration-200 ${isEliminated ? 'opacity-20 bg-neutral-950/40' : 'bg-neutral-900'}`;
+          // ULTRA COMPACT padding adjustment: Changed to py-2.5 px-3
+          let mobileCardClass = `py-2.5 px-3 flex items-center justify-between gap-3 transition duration-200 ${isEliminated ? 'opacity-20 bg-neutral-950/40' : 'bg-neutral-900'}`;
           if (isLive && !isEliminated) {
-            mobileCardClass = "pt-3 pb-2 px-3.5 flex flex-col gap-2 bg-red-950/20 border-l-4 border-red-500 animate-[pulse_3s_infinite]";
+            mobileCardClass = "py-2.5 px-3 flex items-center justify-between gap-3 bg-red-950/20 border-l-4 border-red-500 animate-[pulse_3s_infinite]";
           }
 
           // --- DESKTOP RENDER ---
@@ -261,50 +246,48 @@
           }
           
           if (badgeHTMLSnippet !== "") {
-            badgeHTMLSnippet = badgeHTMLSnippet.replace('font-size: 11px;', 'font-size: 10px;');
+            badgeHTMLSnippet = badgeHTMLSnippet.replace('font-size: 11px;', 'font-size: 9px; margin-right: 4px; padding: 1px 4px;');
           }
 
           // --- MOBILE RENDER ---
           const mCard = document.createElement('div');
           mCard.className = mobileCardClass;
           mCard.innerHTML = `
-            <!-- Original layout context preserved: Manager Name stacked on top of country row details -->
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                <div class="text-sm font-black w-8 h-8 rounded-lg bg-neutral-950 flex items-center justify-center border shadow-inner shrink-0 ${badgeBorderColor} ${pickColor}">#${pick}</div>
-                <div class="min-w-0 flex-1">
-                  <p class="font-black text-white tracking-wide text-sm truncate uppercase leading-tight ${isEliminated ? 'text-neutral-400 font-bold' : ''}">${team.manager}</p>
-                  <div class="text-neutral-400 text-xs flex items-center gap-1.5 mt-0.5 font-medium">
-                    <span class="shrink-0 text-base">${team.flag}</span>
-                    <span class="truncate tracking-wider text-xs font-bold uppercase text-neutral-200">${team.country}</span>
-                    <span class="text-[9px] px-1.5 py-0.5 bg-neutral-950 rounded font-black uppercase shrink-0 ${isEliminated ? 'text-neutral-500' : stageLabelColor.split(' ')[0]}">${STAGES[team.stage]}</span>
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+              <!-- Metallic borders removed: plain bg-neutral-950 background layout -->
+              <div class="text-sm font-black w-8 h-8 rounded-lg bg-neutral-950 flex items-center justify-center shrink-0 ${pickColor}">#${pick}</div>
+              <div class="min-w-0 flex-1">
+                <p class="font-black text-white tracking-wide text-sm truncate uppercase leading-tight ${isEliminated ? 'text-neutral-400 font-bold' : ''}">${team.manager}</p>
+                
+                <!-- Combined Metadata Line: Country, Stage, and Next Up are nested closely together -->
+                <div class="text-neutral-400 text-[11px] flex items-center gap-1.5 mt-0.5 font-medium truncate">
+                  <span class="shrink-0 text-sm leading-none">${team.flag}</span>
+                  <span class="truncate tracking-wider font-bold uppercase text-neutral-200">${team.country}</span>
+                  <span class="text-[9px] px-1 py-0.2 bg-neutral-950 rounded font-black uppercase shrink-0 ${isEliminated ? 'text-neutral-500' : stageLabelColor.split(' ')[0]}">${STAGES[team.stage]}</span>
+                  
+                  <span class="text-neutral-600 font-sans font-bold text-[9px] px-0.5 select-none shrink-0">•</span>
+                  
+                  <div class="flex items-center text-neutral-500 shrink-0 font-mono text-[10px]">
+                    ${badgeHTMLSnippet}
+                    <span class="truncate max-w-[120px] font-medium">${cleanMatchString}</span>
                   </div>
-                </div>
-              </div>
-              
-              <div class="flex items-center gap-3 font-mono shrink-0 select-none text-center">
-                <div class="flex flex-col items-center w-8">
-                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W/P</span>
-                  <span class="text-sm text-neutral-300 font-bold mt-0.5">${winsCount}/${playedCount}</span>
-                </div>
-                <div class="flex flex-col items-center border-l border-neutral-800 pl-2.5 w-10">
-                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
-                  <span class="text-sm font-black mt-0.5 ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
-                </div>
-                <div class="flex flex-col items-center border-l border-neutral-800 pl-2.5 w-10">
-                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">Odds</span>
-                  <span class="text-sm text-neutral-300 font-bold mt-0.5">${Number(team.odds).toFixed(0)}</span>
                 </div>
               </div>
             </div>
             
-            <!-- Compact Mode Adjustments: Sub-tray top margin dropped down to mt-0.5 -->
-            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[10px] font-mono mt-0.5">
-              <div class="flex items-center shrink-0">
-                ${badgeHTMLSnippet}
-                <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider text-[9px]">Next up:</span>
+            <div class="flex items-center gap-3 font-mono shrink-0 select-none text-center">
+              <div class="flex flex-col items-center w-8">
+                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W/P</span>
+                <span class="text-xs text-neutral-300 font-bold mt-0.5">${winsCount}/${playedCount}</span>
               </div>
-              <span class="text-neutral-400 font-semibold text-right flex-1 ml-3 truncate">${cleanMatchString}</span>
+              <div class="flex flex-col items-center border-l border-neutral-800 pl-2 w-9">
+                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
+                <span class="text-xs font-black mt-0.5 ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
+              </div>
+              <div class="flex flex-col items-center border-l border-neutral-800 pl-2 w-9">
+                <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">Odds</span>
+                <span class="text-xs text-neutral-300 font-bold mt-0.5">${Number(team.odds).toFixed(0)}</span>
+              </div>
             </div>
           `;
           mobileContainer.appendChild(mCard);
