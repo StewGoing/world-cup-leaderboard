@@ -63,7 +63,8 @@
                 <th class="py-4 px-4 text-center w-32">Stage</th>
                 <th class="py-4 px-4 text-center w-16">W/P</th>
                 <th class="py-4 px-4 text-center w-24">GD</th>
-                <th class="py-4 px-4 text-center w-14">Odds</th> <th class="py-4 pl-4 pr-10 text-left w-80">Next up (AEST)</th> </tr>
+                <th class="py-4 px-4 text-center w-14">Odds</th>
+                <th class="py-4 pl-4 pr-16 text-left w-88">Next up (AEST)</th> </tr>
             </thead>
             <tbody id="desktop-rows" class="divide-y divide-neutral-800/40"></tbody>
           </table>
@@ -222,8 +223,7 @@
               </div>
             </td>
             <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(1)}</td>
-            <td class="py-4 pl-4 pr-10 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td>
-          `;
+            <td class="py-4 pl-4 pr-16 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td> `;
           desktopBody.appendChild(dRow);
 
           // --- MOBILE BADGE PLACEMENT PROCESSING ---
