@@ -6,7 +6,6 @@ const FOOTBALL_DATA_API_KEY = process.env.FOOTBALL_DATA_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// RECONFIGURED DATE STRING FORMAT ENGINE (Order: Day, Date, Time)
 function formatToAEST(utcString) {
   if (!utcString) return '';
   const date = new Date(utcString);
@@ -51,7 +50,7 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// UPGRADED COMMENTARY ENGINE: Tracks live action, upcoming previews, rankings, AND 24-hour match results (League Only Validation)
+// HIGH-BANTER LEAGUE COMMENTARY ENGINE (SHORTER, PUNCHIER HEADLINES)
 function generateDraftCommentary(allMatches, sortedTeams) {
   const commentaryLines = [];
   const currentExecutionMs = new Date().getTime();
@@ -75,20 +74,18 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const homeScore = m.score?.fullTime?.home ?? 0;
       const awayScore = m.score?.fullTime?.away ?? 0;
 
-      // Find if league managers own these countries
       const homeManager = sortedTeams.find(t => t.country === homeName)?.manager;
       const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
 
-      // LEAGUE VALIDATION FILTER: Skip the match entirely if NEITHER team belongs to your draft group
+      // LEAGUE VALIDATION FILTER: Skip match if NEITHER team belongs to your draft group
       if (!homeManager && !awayManager) return;
 
-      // Fallbacks if one side is unallocated (e.g., playing an unpicked country)
-      const displayHomeManager = homeManager || `${homeTLA} (Unallocated)`;
-      const displayAwayManager = awayManager || `${awayTLA} (Unallocated)`;
+      const displayHomeManager = homeManager || `${homeTLA}`;
+      const displayAwayManager = awayManager || `${awayTLA}`;
 
       if (homeScore === awayScore) {
         commentaryLines.push(
-          `📢 JUST IN: ${homeTLA} v ${awayTLA} ends in a ${homeScore}-${awayScore} draw! ${displayHomeManager} and ${displayAwayManager} split the points.`
+          `📢 DRAW: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA} • ${displayHomeManager} and ${displayAwayManager} pull each other down. Boring.`
         );
       } else {
         const winnerTLA = homeScore > awayScore ? homeTLA : awayTLA;
@@ -97,7 +94,7 @@ function generateDraftCommentary(allMatches, sortedTeams) {
         const marginText = homeScore > awayScore ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
 
         commentaryLines.push(
-          `⚽ RESULT CENTRE: ${winnerManager} secures a massive victory, defeating ${loserManager} ${marginText}! Leaderboard shaking up...`
+          `⚽ CRUSHED: ${winnerManager}'s ${winnerTLA} clears out ${loserManager} ${marginText}. Back to the drawing board.`
         );
       }
     });
@@ -120,15 +117,14 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const homeManager = sortedTeams.find(t => t.country === homeName)?.manager;
       const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
 
-      // LEAGUE VALIDATION FILTER: Skip live matches if no one in your league has skin in the game
       if (!homeManager && !awayManager) return;
 
       const displayHomeManager = homeManager || `${homeTLA}`;
       const displayAwayManager = awayManager || `${awayTLA}`;
-      const statusSuffix = m.status === 'PAUSED' ? ' (HALF-TIME BREAK)' : '';
+      const statusSuffix = m.status === 'PAUSED' ? ' (HT)' : '';
       
       commentaryLines.push(
-        `🔥 LIVE MATCH CENTRE: ${homeTLA} ${homeScore} - ${awayScore} ${awayTLA}${statusSuffix} • Massive stakes here for ${displayHomeManager} and ${displayAwayManager} right now!`
+        `🔥 LIVE: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA}${statusSuffix} • Blood pressure rising for ${displayHomeManager} and ${displayAwayManager}...`
       );
     });
   }
@@ -141,8 +137,8 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     const cellar = sortedTeams[sortedTeams.length - 1];
     
     commentaryLines.push(
-      `🏆 LEADERBOARD WATCH: ${leader.manager} is currently holding onto the prestigious #1 Draft Pick allocation with ${leader.country}!`,
-      `🥄 SPOON ALARM: ${cellar.manager} is sitting down at the bottom in #12 position... long way back from here!`
+      `👑 VIEW FROM THE TOP: ${leader.manager} enjoys the view at #1. Smells like success.`,
+      `🥄 WOODEN SPOON: ${cellar.manager} anchors the table at #12. Someone get this man a map.`
     );
   }
 
@@ -157,7 +153,6 @@ function generateDraftCommentary(allMatches, sortedTeams) {
   });
 
   if (upcomingMatches.length > 0) {
-    // Loop through upcoming games until we find one that features a league manager
     for (const nextGame of upcomingMatches) {
       const homeName = nextGame.homeTeam?.name || '';
       const awayName = nextGame.awayTeam?.name || '';
@@ -165,17 +160,17 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
 
       if (homeManager || awayManager) {
-        const hypeTargets = [homeManager, awayManager].filter(Boolean).join(' vs ');
+        const primaryTarget = homeManager || awayManager;
         commentaryLines.push(
-          `📅 UPCOMING FIXTURE HYPE: Next up on the schedule is ${hypeTargets}! Good luck out there gents, major leaderboard movements incoming.`
+          `📅 NEXT UP: ${nextGame.homeTeam?.tla || 'TBD'} vs ${nextGame.awayTeam?.tla || 'TBD'} • Big test incoming for ${primaryTarget}. Pray for them.`
         );
-        break; // Only feature the single most imminent relevant game to avoid ticker bloating
+        break; 
       }
     }
   }
 
   if (commentaryLines.length === 0) {
-    commentaryLines.push("🏆 World Cup Draft Decider Leaderboard • Updates processing live every hour!");
+    commentaryLines.push("🏆 World Cup Draft Decider • Hourly calculation sequence active.");
   }
 
   return commentaryLines.join("   •   ");
@@ -260,10 +255,6 @@ async function sync() {
         let badgeHTML = "";
         if (isWithin48Hours) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
-          
-          // RECONFIGURED BACKGROUND COLORS: 
-          // If > 24 hours out, use low-profile dark grey (#262626) with light grey text (#a3a3a3).
-          // If <= 24 hours out, use high-visibility dark text on bright amber (#ffc107).
           const badgeBgColor = hoursRemaining > 24 ? "#262626" : "#ffc107";
           const badgeTextColor = hoursRemaining > 24 ? "#a3a3a3" : "#000000";
           
