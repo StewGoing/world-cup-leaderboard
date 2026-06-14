@@ -27,7 +27,6 @@
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
-  <!-- SMOOTH-ANIMATED NEWS TICKER TRAY -->
   <div class="max-w-5xl mx-auto mb-4 bg-neutral-900/80 border border-neutral-800/60 rounded-lg overflow-hidden h-7 flex items-center shadow-lg">
     <div class="bg-amber-500 text-neutral-950 text-[9px] font-black uppercase tracking-widest px-3 h-full flex items-center z-10 shrink-0 select-none shadow-md">News</div>
     <div class="ticker-wrap w-full font-mono text-[11px] text-neutral-300 font-semibold relative">
@@ -35,7 +34,6 @@
     </div>
   </div>
 
-  <!-- Header Layout -->
   <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 flex flex-col md:flex-row md:justify-between items-center md:items-end gap-3 text-center md:text-left">
     <div>
       <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
@@ -52,11 +50,9 @@
       Connecting to Cloud Standings...
     </div>
 
-    <!-- Main Table Container Layout -->
     <div id="board-wrapper" class="hidden space-y-6">
       <div class="bg-neutral-900 border border-neutral-800 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl">
         
-        <!-- DESKTOP SCREEN GRIDS -->
         <div class="hidden md:block overflow-x-auto">
           <table class="w-full text-left border-collapse table-fixed max-w-5xl">
             <thead>
@@ -75,11 +71,9 @@
           </table>
         </div>
 
-        <!-- RESPONSIVE MOBILE CELL LIST STACKS -->
         <div id="mobile-list" class="block md:hidden divide-y divide-neutral-800/60 bg-neutral-900"></div>
       </div>
 
-      <!-- BOTTOM RULE LEGEND BOX -->
       <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 md:p-6 shadow-xl space-y-5">
         <div>
           <h3 class="text-xs uppercase font-black text-amber-500 tracking-widest border-b border-neutral-800 pb-2 mb-3">Tournament Rules & Tiebreaker Hierarchy</h3>
@@ -92,7 +86,6 @@
           </div>
         </div>
 
-        <!-- DEFINITION LABELS -->
         <div class="border-t border-neutral-800/80 pt-4">
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
@@ -237,6 +230,33 @@
             ? `<span style="background-color: #262626; color: #a3a3a3; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle; border: 1px solid #404040;">⏱️ FT</span>` 
             : '';
 
+          // --- RECENT STATE STYLING ARCHITECTURE ---
+          let winDigitStyle = "text-neutral-200";
+          let drawDigitStyle = "text-neutral-500/90 font-medium";
+          let recentGDStyle = team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-300';
+          let recentGDBadgeBg = "bg-neutral-950/40 border border-neutral-900";
+
+          if (showFTBadge) {
+            // Isolate what happened in the recent game:
+            const isNoteDeclaringDraw = team.notes && team.notes.includes(`📢 DRAW: ${team.country.substring(0,3).toUpperCase()}`);
+            
+            if (isNoteDeclaringDraw || (winsCount === 0 && team.gd === 0)) {
+              // STALEMATE DRAW DETECTED: Illuminate the middle draw block in gold amber
+              drawDigitStyle = "text-amber-400 font-extrabold drop-shadow-[0_0_6px_rgba(251,191,36,0.35)]";
+              recentGDStyle = "text-amber-300/90 font-bold";
+              recentGDBadgeBg = "bg-amber-950/20 border border-amber-500/20 rounded-md px-1 py-0.5";
+            } else {
+              // DECISIVE WIN DETECTED: Illuminate the win block and goal difference container in vibrant emerald
+              if (winsCount > 0) {
+                winDigitStyle = "text-emerald-400 font-extrabold drop-shadow-[0_0_6px_rgba(52,211,153,0.4)]";
+              }
+              if (team.gd > 0) {
+                recentGDStyle = "text-emerald-300 font-black";
+                recentGDBadgeBg = "bg-emerald-950/30 border border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.15)] rounded-md px-1 py-0.5";
+              }
+            }
+          }
+
           let desktopRowClass = `transition hover:bg-neutral-800/15 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
           if (isLive && matchString.includes('data-badge="live"')) {
             desktopRowClass = "bg-red-950/15 border-l-4 border-red-500 transition hover:bg-red-950/25 animate-[pulse_3s_infinite]";
@@ -264,12 +284,12 @@
             </td>
             
             <td class="py-4 px-4 text-center font-mono text-sm font-bold whitespace-nowrap tracking-wide">
-              <span class="text-neutral-200">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${lossesCount}</span>
+              <span class="${winDigitStyle}">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${drawDigitStyle}">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${lossesCount}</span>
             </td>
             
             <td class="py-4 px-4 font-mono">
               <div class="flex items-center justify-center gap-2">
-                <span class="font-bold text-sm w-5 text-right ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-300'}">
+                <span class="font-bold text-sm w-5 text-right ${recentGDStyle}">
                   ${team.gd > 0 ? '+' + team.gd : team.gd}
                 </span>
                 <div class="flex flex-col text-left text-[9px] font-sans font-bold text-neutral-500/90 leading-tight border-l border-neutral-800/80 pl-2 shrink-0 select-none">
@@ -305,13 +325,10 @@
           mCard.className = mobileCardClass;
           mCard.innerHTML = `
             <div class="flex items-center justify-between gap-2">
-              <!-- MOBILE FIX: flex-nowrap prevents line wrapping, min-w-0 permits sub-containers to clip safely -->
               <div class="flex items-center gap-2 min-w-0 flex-1 flex-nowrap">
                 <div class="text-sm font-black w-8 h-8 rounded-lg bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner shrink-0 ${pickColor}">#${pick}</div>
                 <div class="min-w-0 flex-1">
                   <p class="font-black text-white tracking-wide text-sm truncate uppercase leading-tight ${isEliminated ? 'text-neutral-400 font-bold' : ''}">${team.manager}</p>
-                  
-                  <!-- MOBILE FIX: flex-nowrap locks the country layout container to a single row line, truncate clips name string -->
                   <div class="text-neutral-400 text-xs flex items-center gap-1.5 mt-0.5 font-medium flex-nowrap min-w-0">
                     <span class="shrink-0 text-base">${team.flag}</span>
                     <span class="truncate tracking-wider text-xs font-bold uppercase text-neutral-200 min-w-0">${team.country}</span>
@@ -324,13 +341,15 @@
                 <div class="flex flex-col items-center w-11">
                   <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W-D-L</span>
                   <span class="text-sm font-bold mt-0.5 whitespace-nowrap tracking-tighter">
-                    <span class="text-neutral-200">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${lossesCount}</span>
+                    <span class="${winDigitStyle}">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${drawDigitStyle}">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${lossesCount}</span>
                   </span>
                 </div>
                 
                 <div class="flex flex-col items-center border-l border-neutral-800 pl-1.5 w-8">
                   <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
-                  <span class="text-sm font-black mt-0.5 ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-300'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
+                  <div class="${recentGDBadgeBg} mt-0.5 flex items-center justify-center min-w-6">
+                    <span class="text-sm font-black ${recentGDStyle}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
+                  </div>
                 </div>
                 
                 <div class="flex flex-col items-center border-l border-neutral-800 pl-1.5 w-8">
