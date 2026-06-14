@@ -96,7 +96,7 @@
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
             <div><span class="text-neutral-300 font-bold">W/P:</span> Wins / Matches Played</div>
-            <div><span class="text-neutral-300 font-bold">GD:</span> Goal Difference <span class="text-neutral-600 font-semibold">(F = Goals For, A = Goals Against)</span></div>
+            <div><span class="text-neutral-300 font-bold">GD:</span> Goal Difference</div>
             <div><span class="text-neutral-300 font-bold">Odds:</span> Pre-tournament baseline bookmaker value</div>
           </div>
         </div>
@@ -234,15 +234,24 @@
           `;
           desktopBody.appendChild(dRow);
 
+          // --- MOBILE BADGE PLACEMENT PROCESSING ---
+          // Extracts the injected badge HTML block from the main match string to rearrange them for mobile
+          let badgeHTMLSnippet = "";
+          let cleanMatchString = matchString;
+
+          if (matchString.includes('<span')) {
+            const closingSpanIndex = matchString.indexOf('</span>') + 7;
+            badgeHTMLSnippet = matchString.substring(0, closingSpanIndex);
+            cleanMatchString = matchString.substring(closingSpanIndex).trim();
+          }
+
           // --- MOBILE RENDER ---
           const mCard = document.createElement('div');
           mCard.className = mobileCardClass;
-          
-          // BALANCED MOBILE DATA STRIP: Restored structural column widths, center-aligned values perfectly below headers, and stacked footnotes vertically
           mCard.innerHTML = `
-            <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center justify-between gap-3">
               <div class="flex items-center gap-2 min-w-0 flex-1">
-                <div class="text-sm font-black w-8 h-8 rounded-lg bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner shrink-0 ${pickColor}">#${pick}</div>
+                <div class="text-xs font-black w-7 h-7 rounded-lg bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner shrink-0 ${pickColor}">#${pick}</div>
                 <div class="min-w-0 flex-1">
                   <p class="font-extrabold text-white tracking-wide text-xs truncate uppercase leading-tight">${team.manager}</p>
                   <div class="text-neutral-400 text-[11px] flex items-center gap-1 mt-0.5 font-medium">
@@ -253,26 +262,28 @@
                 </div>
               </div>
               
-              <div class="flex items-stretch gap-2 font-mono shrink-0 select-none text-center">
-                <div class="flex flex-col justify-between items-center w-8">
+              <!-- CLEANED STAT PANEL: Removed Goal-Footnote indicators entirely for mobile views -->
+              <div class="flex items-center gap-3 font-mono shrink-0 select-none text-center">
+                <div class="flex flex-col items-center">
                   <span class="block text-[8px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W/P</span>
-                  <span class="text-[11px] text-neutral-300 font-bold mt-auto">${winsCount}/${playedCount}</span>
+                  <span class="text-[11px] text-neutral-300 font-bold mt-0.5">${winsCount}/${playedCount}</span>
                 </div>
-                <div class="flex flex-col justify-between items-center border-l border-neutral-800/80 pl-2 w-10">
+                <div class="flex flex-col items-center border-l border-neutral-800 pl-2.5">
                   <span class="block text-[8px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
-                  <span class="text-[11px] font-black leading-none my-auto ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
-                  <span class="block text-[7px] font-sans font-bold text-neutral-500 mt-auto leading-none">${goalsFor}F/${goalsAgainst}A</span>
+                  <span class="text-[11px] font-black mt-0.5 ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
                 </div>
-                <div class="flex flex-col justify-between items-center border-l border-neutral-800/80 pl-2 w-8">
+                <div class="flex flex-col items-center border-l border-neutral-800 pl-2.5">
                   <span class="block text-[8px] font-sans font-bold text-neutral-500 uppercase tracking-wider">Odds</span>
-                  <span class="text-[11px] text-neutral-300 font-bold mt-auto">${Number(team.odds).toFixed(0)}</span>
+                  <span class="text-[11px] text-neutral-300 font-bold mt-0.5">${Number(team.odds).toFixed(0)}</span>
                 </div>
               </div>
             </div>
             
-            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex justify-between items-center text-[10px] font-mono">
+            <!-- REARRANGED FOOTER ROW: Places the extracted status badge to the far left, before 'Next up:' -->
+            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2 py-1.5 flex items-center text-[10px] font-mono">
+              ${badgeHTMLSnippet}
               <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider shrink-0 text-[9px]">Next up:</span>
-              <span class="text-amber-500 font-semibold text-right max-w-none ml-2 truncate">${matchString}</span>
+              <span class="text-amber-500 font-semibold text-right flex-1 ml-1.5 truncate">${cleanMatchString}</span>
             </div>
           `;
           mobileContainer.appendChild(mCard);
