@@ -27,6 +27,7 @@
 </head>
 <body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
+  <!-- SMOOTH-ANIMATED NEWS TICKER TRAY -->
   <div class="max-w-5xl mx-auto mb-4 bg-neutral-900/80 border border-neutral-800/60 rounded-lg overflow-hidden h-7 flex items-center shadow-lg">
     <div class="bg-amber-500 text-neutral-950 text-[9px] font-black uppercase tracking-widest px-3 h-full flex items-center z-10 shrink-0 select-none shadow-md">News</div>
     <div class="ticker-wrap w-full font-mono text-[11px] text-neutral-300 font-semibold relative">
@@ -34,6 +35,7 @@
     </div>
   </div>
 
+  <!-- Header Layout -->
   <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 flex flex-col md:flex-row md:justify-between items-center md:items-end gap-3 text-center md:text-left">
     <div>
       <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
@@ -50,9 +52,11 @@
       Connecting to Cloud Standings...
     </div>
 
+    <!-- Main Table Container Layout -->
     <div id="board-wrapper" class="hidden space-y-6">
       <div class="bg-neutral-900 border border-neutral-800 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl">
         
+        <!-- DESKTOP SCREEN GRIDS -->
         <div class="hidden md:block overflow-x-auto">
           <table class="w-full text-left border-collapse table-fixed max-w-5xl">
             <thead>
@@ -61,7 +65,7 @@
                 <th class="py-4 px-4 w-52">Manager</th>
                 <th class="py-4 px-4 w-36">Country</th>
                 <th class="py-4 px-4 text-center w-32">Stage</th>
-                <th class="py-4 px-4 text-center w-20">W/D/L</th>
+                <th class="py-4 px-4 text-center w-20">W-D-L</th>
                 <th class="py-4 px-4 text-center w-24">GD</th>
                 <th class="py-4 px-4 text-center w-14">Odds</th>
                 <th class="py-4 pl-4 pr-16 text-left w-88">Next up (AEST)</th>
@@ -71,9 +75,11 @@
           </table>
         </div>
 
+        <!-- RESPONSIVE MOBILE CELL LIST STACKS -->
         <div id="mobile-list" class="block md:hidden divide-y divide-neutral-800/60 bg-neutral-900"></div>
       </div>
 
+      <!-- BOTTOM RULE LEGEND BOX -->
       <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 md:p-6 shadow-xl space-y-5">
         <div>
           <h3 class="text-xs uppercase font-black text-amber-500 tracking-widest border-b border-neutral-800 pb-2 mb-3">Tournament Rules & Tiebreaker Hierarchy</h3>
@@ -89,7 +95,7 @@
         <div class="border-t border-neutral-800/80 pt-4">
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
-            <div><span class="text-neutral-300 font-bold">W/D/L:</span> Wins / Draws / Losses</div>
+            <div><span class="text-neutral-300 font-bold">W-D-L:</span> Wins / Draws / Losses</div>
             <div><span class="text-neutral-300 font-bold">GD:</span> Goal Difference</div>
             <div><span class="text-neutral-300 font-bold">Odds:</span> Pre-tournament baseline bookmaker value</div>
           </div>
@@ -238,7 +244,7 @@
             </td>
             
             <td class="py-4 px-4 text-center font-mono text-sm font-bold whitespace-nowrap tracking-wide">
-              <span class="text-neutral-100">${winsCount}</span><span class="text-neutral-600 font-sans mx-px text-xs">/</span><span class="text-neutral-500">${drawsCount}</span><span class="text-neutral-600 font-sans mx-px text-xs">/</span><span class="text-neutral-500">${lossesCount}</span>
+              <span class="text-neutral-100">${winsCount}</span><span class="text-neutral-500 font-sans mx-px text-xs">-</span><span class="text-neutral-500">${drawsCount}</span><span class="text-neutral-500 font-sans mx-px text-xs">-</span><span class="text-neutral-500">${lossesCount}</span>
             </td>
             
             <td class="py-4 px-4 font-mono">
@@ -275,8 +281,8 @@
           const mCard = document.createElement('div');
           mCard.className = mobileCardClass;
           mCard.innerHTML = `
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0 flex-1">
                 <div class="text-sm font-black w-8 h-8 rounded-lg bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner shrink-0 ${pickColor}">#${pick}</div>
                 <div class="min-w-0 flex-1">
                   <p class="font-black text-white tracking-wide text-sm truncate uppercase leading-tight ${isEliminated ? 'text-neutral-400 font-bold' : ''}">${team.manager}</p>
@@ -288,21 +294,22 @@
                 </div>
               </div>
               
-              <div class="flex items-center gap-3 font-mono shrink-0 select-none text-center">
-                <div class="flex flex-col items-center w-14">
-                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W/D/L</span>
-                  <span class="text-sm font-bold text-neutral-300 mt-0.5 whitespace-nowrap tracking-wide">
-                    ${winsCount}/${drawsCount}/${lossesCount}
+              <!-- TIGHTENED & OPTIMIZED COLUMN LAYOUT WITH MUTED HYPHEN RECORDS -->
+              <div class="flex items-center gap-2 font-mono shrink-0 select-none text-center">
+                <div class="flex flex-col items-center w-11">
+                  <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W-D-L</span>
+                  <span class="text-sm font-bold mt-0.5 whitespace-nowrap tracking-tighter">
+                    <span class="text-neutral-200">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="text-neutral-500/90 font-medium">${lossesCount}</span>
                   </span>
                 </div>
                 
-                <div class="flex flex-col items-center border-l border-neutral-800 pl-2.5 w-10">
-                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
+                <div class="flex flex-col items-center border-l border-neutral-800 pl-1.5 w-8">
+                  <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
                   <span class="text-sm font-black mt-0.5 ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-300'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
                 </div>
                 
-                <div class="flex flex-col items-center border-l border-neutral-800 pl-2.5 w-10">
-                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">Odds</span>
+                <div class="flex flex-col items-center border-l border-neutral-800 pl-1.5 w-8">
+                  <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">Odds</span>
                   <span class="text-sm text-neutral-300 font-bold mt-0.5">${Number(team.odds).toFixed(0)}</span>
                 </div>
               </div>
