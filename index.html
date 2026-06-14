@@ -92,7 +92,6 @@
           </div>
         </div>
 
-        <!-- DEFINITION LABELS -->
         <div class="border-t border-neutral-800/80 pt-4">
           <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
@@ -218,6 +217,21 @@
           if (team.stage === 7) stageLabelColor = 'text-orange-400 border-orange-500/20';
           if (team.stage === 11 || team.stage === 6) stageLabelColor = 'text-purple-400 border-purple-500/30 bg-purple-950/20 animate-pulse';
 
+          // --- CONDITIONAL 12-HOUR FT BADGE ENGINE ---
+          let showFTBadge = false;
+          if (team.last_match_end) {
+            const finishedTime = new Date(team.last_match_end);
+            const currentTime = new Date();
+            const hoursElapsed = (currentTime - finishedTime) / 1000 / 60 / 60;
+            if (hoursElapsed >= 0 && hoursElapsed <= 12) {
+              showFTBadge = true;
+            }
+          }
+          
+          const ftBadgeHTML = showFTBadge 
+            ? `<span class="ml-1.5 text-[9px] px-1.5 py-0.5 bg-neutral-800 border border-neutral-700 text-neutral-400 font-bold uppercase rounded tracking-wider select-none">FT ⏱️</span>` 
+            : '';
+
           let desktopRowClass = `transition hover:bg-neutral-800/15 ${isEliminated ? 'opacity-30 bg-neutral-950/40' : ''}`;
           if (isLive && !isEliminated) {
             desktopRowClass = "bg-red-950/15 border-l-4 border-red-500 transition hover:bg-red-950/25 animate-[pulse_3s_infinite]";
@@ -228,7 +242,7 @@
             mobileCardClass = "pt-3 pb-2 px-3.5 flex flex-col gap-2 bg-red-950/20 border-l-4 border-red-500 animate-[pulse_3s_infinite]";
           }
 
-          // --- DESKTOP RENDER (OPTICALLY TUNED COLUMNS) ---
+          // --- DESKTOP RENDER ---
           const dRow = document.createElement('tr');
           dRow.className = desktopRowClass;
           dRow.innerHTML = `
@@ -242,6 +256,7 @@
               <span class="text-[10px] px-2.5 py-1 rounded-full font-black uppercase bg-neutral-950 border ${isEliminated ? 'text-neutral-500 border-neutral-800' : stageLabelColor}">
                 ${STAGES[team.stage]} ${isEliminated ? '❌' : '🏁'}
               </span>
+              ${ftBadgeHTML}
             </td>
             
             <td class="py-4 px-4 text-center font-mono text-sm font-bold whitespace-nowrap tracking-wide">
@@ -260,7 +275,6 @@
               </div>
             </td>
             
-            <!-- OPTICAL ADJUSTMENT: Added tracking-tight to pull layout sizing into an identical footprint -->
             <td class="py-4 px-4 text-center font-mono text-neutral-300 text-sm font-bold tracking-tight">${Number(team.odds).toFixed(1)}</td>
             <td class="py-4 pl-4 pr-16 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td>
           `;
@@ -293,6 +307,7 @@
                     <span class="shrink-0 text-base">${team.flag}</span>
                     <span class="truncate tracking-wider text-xs font-bold uppercase text-neutral-200">${team.country}</span>
                     <span class="text-[9px] px-1.5 py-0.5 bg-neutral-950 rounded font-black uppercase shrink-0 ${isEliminated ? 'text-neutral-500' : stageLabelColor.split(' ')[0]}">${STAGES[team.stage]}</span>
+                    ${ftBadgeHTML}
                   </div>
                 </div>
               </div>
