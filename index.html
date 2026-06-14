@@ -213,3 +213,109 @@
           // Compact mobile container padding tracking classes maintained
           let mobileCardClass = `pt-3 pb-2 px-3.5 flex flex-col gap-2 transition duration-200 ${isEliminated ? 'opacity-20 bg-neutral-950/40' : 'bg-neutral-900'}`;
           if (isLive && !isEliminated) {
+            mobileCardClass = "pt-3 pb-2 px-3.5 flex flex-col gap-2 bg-red-950/20 border-l-4 border-red-500 animate-[pulse_3s_infinite]";
+          }
+
+          // --- DESKTOP RENDER ---
+          const dRow = document.createElement('tr');
+          dRow.className = desktopRowClass;
+          dRow.innerHTML = `
+            <td class="py-4 px-4 text-center font-black text-sm md:text-base ${pickColor}">#${pick}</td>
+            <td class="py-4 px-4 font-extrabold text-neutral-100 tracking-wide text-sm truncate">${team.manager}</td>
+            <td class="py-4 px-4 text-neutral-300 text-sm truncate">
+              <span class="text-xl mr-2 inline-block align-middle">${team.flag}</span>
+              <span class="align-middle uppercase tracking-wider text-xs font-bold">${team.country}</span>
+            </td>
+            <td class="py-4 px-4 text-center whitespace-nowrap">
+              <span class="text-[10px] px-2.5 py-1 rounded-full font-black uppercase bg-neutral-950 border ${isEliminated ? 'text-neutral-500 border-neutral-800' : stageLabelColor}">
+                ${STAGES[team.stage]} ${isEliminated ? '❌' : '🏁'}
+              </span>
+            </td>
+            <td class="py-4 px-4 text-center font-mono text-neutral-400 text-sm font-semibold">${winsCount}/${playedCount}</td>
+            <td class="py-4 px-4 font-mono">
+              <div class="flex items-center justify-center gap-2">
+                <span class="font-black text-sm w-5 text-right ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">
+                  ${team.gd > 0 ? '+' + team.gd : team.gd}
+                </span>
+                <div class="flex flex-col text-left text-[9px] font-sans font-bold text-neutral-500/90 leading-tight border-l border-neutral-800/80 pl-2 shrink-0 select-none">
+                  <span>F: ${goalsFor}</span>
+                  <span>A: ${goalsAgainst}</span>
+                </div>
+              </div>
+            </td>
+            <td class="py-4 px-4 text-center font-mono text-neutral-400 text-xs">${Number(team.odds).toFixed(1)}</td>
+            <td class="py-4 pl-4 pr-16 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">${matchString}</td>
+          `;
+          desktopBody.appendChild(dRow);
+
+          // --- MOBILE BADGE PLACEMENT PROCESSING ---
+          let badgeHTMLSnippet = "";
+          let cleanMatchString = matchString;
+
+          if (matchString.includes('<span')) {
+            const closingSpanIndex = matchString.indexOf('</span>') + 7;
+            badgeHTMLSnippet = matchString.substring(0, closingSpanIndex);
+            cleanMatchString = matchString.substring(closingSpanIndex).trim();
+          }
+          
+          if (badgeHTMLSnippet !== "") {
+            badgeHTMLSnippet = badgeHTMLSnippet.replace('font-size: 11px;', 'font-size: 10px;');
+          }
+
+          // --- MOBILE RENDER ---
+          const mCard = document.createElement('div');
+          mCard.className = mobileCardClass;
+          mCard.innerHTML = `
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                <div class="text-sm font-black w-8 h-8 rounded-lg bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner shrink-0 ${pickColor}">#${pick}</div>
+                <div class="min-w-0 flex-1">
+                  <p class="font-black text-white tracking-wide text-sm truncate uppercase leading-tight ${isEliminated ? 'text-neutral-400 font-bold' : ''}">${team.manager}</p>
+                  <div class="text-neutral-400 text-xs flex items-center gap-1.5 mt-0.5 font-medium">
+                    <span class="shrink-0 text-base">${team.flag}</span>
+                    <span class="truncate tracking-wider text-xs font-bold uppercase text-neutral-200">${team.country}</span>
+                    <span class="text-[9px] px-1.5 py-0.5 bg-neutral-950 rounded font-black uppercase shrink-0 ${isEliminated ? 'text-neutral-500' : stageLabelColor.split(' ')[0]}">${STAGES[team.stage]}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="flex items-center gap-3 font-mono shrink-0 select-none text-center">
+                <div class="flex flex-col items-center w-8">
+                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W/P</span>
+                  <span class="text-sm text-neutral-300 font-bold mt-0.5">${winsCount}/${playedCount}</span>
+                </div>
+                <div class="flex flex-col items-center border-l border-neutral-800 pl-2.5 w-10">
+                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
+                  <span class="text-sm font-black mt-0.5 ${team.gd > 0 ? 'text-emerald-400' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-400'}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
+                </div>
+                <div class="flex flex-col items-center border-l border-neutral-800 pl-2.5 w-10">
+                  <span class="block text-[10px] font-sans font-bold text-neutral-500 uppercase tracking-wider">Odds</span>
+                  <span class="text-sm text-neutral-300 font-bold mt-0.5">${Number(team.odds).toFixed(0)}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[10px] font-mono mt-0.5">
+              <div class="flex items-center shrink-0">
+                ${badgeHTMLSnippet}
+                <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider text-[9px]">Next up:</span>
+              </div>
+              <span class="text-neutral-400 font-semibold text-right flex-1 ml-3 truncate">${cleanMatchString}</span>
+            </div>
+          `;
+          mobileContainer.appendChild(mCard);
+        });
+
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('board-wrapper').classList.remove('hidden');
+      } catch (err) {
+        document.getElementById('loading').innerText = "An unexpected interface error occurred.";
+      }
+    }
+
+    // Initialize data structures and telemetry tracking sequentially on window execution
+    loadLeaderboard();
+    logAnonymousPageView();
+  </script>
+</body>
+</html>
