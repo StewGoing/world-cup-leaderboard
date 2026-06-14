@@ -161,7 +161,6 @@ async function sync() {
         const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
         const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
         
-        // MODIFICATION: Shortened from "🔥 LIVE NOW" to just "🔥 LIVE" to preserve space
         const liveLabelText = m.status === 'PAUSED' ? "🔥 LIVE (HT)" : "🔥 LIVE";
         const liveBadgeHTML = `<span data-badge="live" style="background-color: #ef4444; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">${liveLabelText}</span>`;
 
@@ -193,9 +192,13 @@ async function sync() {
         if (isWithin48Hours) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
           
-          // MODIFICATION: If countdown is between 24 and 48 hours, render a faint yellow bg (#fef08a). Otherwise use bright amber (#ffc107)
-          const badgeBgColor = hoursRemaining > 24 ? "#fef08a" : "#ffc107";
-          badgeHTML = `<span data-badge="countdown" style="background-color: ${badgeBgColor}; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
+          // RECONFIGURED BACKGROUND COLORS: 
+          // If > 24 hours out, use low-profile dark grey (#262626) with light grey text (#a3a3a3).
+          // If <= 24 hours out, use high-visibility dark text on bright amber (#ffc107).
+          const badgeBgColor = hoursRemaining > 24 ? "#262626" : "#ffc107";
+          const badgeTextColor = hoursRemaining > 24 ? "#a3a3a3" : "#000000";
+          
+          badgeHTML = `<span data-badge="countdown" style="background-color: ${badgeBgColor}; color: ${badgeTextColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
         if (homeName && !liveMatchMap[homeName] && !nextMatchMap[homeName]) {
@@ -286,8 +289,6 @@ async function sync() {
         await supabase.from('world_cup_leaderboard').update({
           wins: live.wins,
           gd: live.gd,
-          gf: live.gf, 
-          ga: live.ga, 
           games_played: live.played,
           stage: stageWeightNum, 
           next_match: nextMatchText,
@@ -305,7 +306,7 @@ async function sync() {
       }
     }
 
-    console.log("🚀 Complete System Sync finished successfully!");
+    console.log("🚀 Muted Countdown Styles Synced Successfully!");
   } catch (err) {
     console.error("❌ Execution Error:", err.message);
     process.exit(1);
