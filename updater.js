@@ -50,15 +50,13 @@ function generateDraftCommentary(allMatches, sortedTeams) {
 
   if (recentFinishedMatches.length > 0) {
     recentFinishedMatches.forEach(m => {
-      const homeName = m.homeTeam?.name || '';
-      const awayName = m.awayTeam?.name || '';
       const homeTLA = m.homeTeam?.tla || 'TBD';
       const awayTLA = m.awayTeam?.tla || 'TBD';
       const homeScore = m.score?.fullTime?.home ?? 0;
       const awayScore = m.score?.fullTime?.away ?? 0;
 
-      const homeManager = sortedTeams.find(t => t.country === homeName)?.manager;
-      const awayManager = sortedTeams.find(t => t.country === awayName)?.manager;
+      const homeManager = sortedTeams.find(t => t.country_tla === homeTLA)?.manager;
+      const awayManager = sortedTeams.find(t => t.country_tla === awayTLA)?.manager;
 
       if (!homeManager && !awayManager) return;
 
@@ -97,8 +95,8 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const awayTLA = m.awayTeam?.tla || 'TBD';
       const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
       const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
-      const homeManager = sortedTeams.find(t => t.country === (m.homeTeam?.name || ''))?.manager;
-      const awayManager = sortedTeams.find(t => t.country === (m.awayTeam?.name || ''))?.manager;
+      const homeManager = sortedTeams.find(t => t.country_tla === homeTLA)?.manager;
+      const awayManager = sortedTeams.find(t => t.country_tla === awayTLA)?.manager;
 
       if (!homeManager && !awayManager) return;
       const statusSuffix = m.status === 'PAUSED' ? ' (HT)' : '';
@@ -134,7 +132,6 @@ async function sync() {
       }
     }
 
-    // CRITICAL BUGFIX: We drop the /standings API entirely and build metrics purely out of the global matches array!
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
       headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY }
@@ -142,61 +139,79 @@ async function sync() {
     const fixturesJson = await fixturesRes.json();
     const allMatches = fixturesJson.matches || [];
 
+    const { data: dbTeams, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
+    if (dbError) throw dbError;
+
     const nextMatchMap = {};
     const liveMatchMap = {};
     const lastFinishedMatchMap = {};
     const matchWinnersSet = new Set();
-    
-    // Core aggregation memory engine to dynamically recalculate stats directly from raw match results
     const dynamicStatsMap = {};
 
-    const initializeTeamStats = (name) => {
-      if (!dynamicStatsMap[name]) {
-        dynamicStatsMap[name] = { wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, stageString: 'GROUP_STAGE', matchStatus: 'TIMED', eliminated: false };
-      }
-    };
+    // Map database teams by their country name safely, ensuring baseline values populate flawlessly
+    dbTeams.forEach(team => {
+      // If your database doesn't have a formal TLA field, fallback to scanning the first 3 chars uppercase
+      const teamTLA = team.country_tla || team.country.substring(0, 3).toUpperCase();
+      dynamicStatsMap[teamTLA] = {
+        wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0,
+        stageString: 'GROUP_STAGE', matchStatus: 'TIMED', eliminated: false, name: team.country
+      };
+    });
 
     allMatches.forEach(m => {
-      const homeName = m.homeTeam?.name;
-      const awayName = m.awayTeam?.name;
-      if (!homeName || !awayName) return;
+      const homeTLA = m.homeTeam?.tla;
+      const awayTLA = m.awayTeam?.tla;
+      if (!homeTLA || !awayTLA) return;
 
-      initializeTeamStats(homeName);
-      initializeTeamStats(awayName);
+      const hasHome = dynamicStatsMap.hasOwnProperty(homeTLA);
+      const hasAway = dynamicStatsMap.hasOwnProperty(awayTLA);
 
-      // Track furthest active layout tracking points
-      dynamicStatsMap[homeName].stageString = m.stage;
-      dynamicStatsMap[homeName].matchStatus = m.status;
-      dynamicStatsMap[awayName].stageString = m.stage;
-      dynamicStatsMap[awayName].matchStatus = m.status;
+      if (hasHome) {
+        dynamicStatsMap[homeTLA].stageString = m.stage;
+        dynamicStatsMap[homeTLA].matchStatus = m.status;
+      }
+      if (hasAway) {
+        dynamicStatsMap[awayTLA].stageString = m.stage;
+        dynamicStatsMap[awayTLA].matchStatus = m.status;
+      }
 
       if (m.status === 'FINISHED') {
         const homeScore = m.score.fullTime.home ?? 0;
         const awayScore = m.score.fullTime.away ?? 0;
 
-        // Populate total record pools sequentially
-        dynamicStatsMap[homeName].gf += homeScore;
-        dynamicStatsMap[homeName].ga += awayScore;
-        dynamicStatsMap[awayName].gf += awayScore;
-        dynamicStatsMap[awayName].ga += homeScore;
-
-        if (m.score.winner === 'HOME_TEAM') {
-          dynamicStatsMap[homeName].wins += 1;
-          dynamicStatsMap[awayName].losses += 1;
-          matchWinnersSet.add(homeName);
-          if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayName].eliminated = true; // Knockout absolute drop conditions
-        } else if (m.score.winner === 'AWAY_TEAM') {
-          dynamicStatsMap[awayName].wins += 1;
-          dynamicStatsMap[homeName].losses += 1;
-          matchWinnersSet.add(awayName);
-          if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeName].eliminated = true;
-        } else {
-          dynamicStatsMap[homeName].draws += 1;
-          dynamicStatsMap[awayName].draws += 1;
+        if (hasHome) {
+          dynamicStatsMap[homeTLA].gf += homeScore;
+          dynamicStatsMap[homeTLA].ga += awayScore;
+          lastFinishedMatchMap[homeTLA] = m;
+        }
+        if (hasAway) {
+          dynamicStatsMap[awayTLA].gf += awayScore;
+          dynamicStatsMap[awayTLA].ga += homeScore;
+          lastFinishedMatchMap[awayTLA] = m;
         }
 
-        lastFinishedMatchMap[homeName] = m;
-        lastFinishedMatchMap[awayName] = m;
+        if (m.score.winner === 'HOME_TEAM') {
+          if (hasHome) {
+            dynamicStatsMap[homeTLA].wins += 1;
+            matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
+          }
+          if (hasAway && m.stage !== 'GROUP_STAGE') {
+            dynamicStatsMap[awayTLA].losses += 1;
+            dynamicStatsMap[awayTLA].eliminated = true; 
+          }
+        } else if (m.score.winner === 'AWAY_TEAM') {
+          if (hasAway) {
+            dynamicStatsMap[awayTLA].wins += 1;
+            matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
+          }
+          if (hasHome && m.stage !== 'GROUP_STAGE') {
+            dynamicStatsMap[homeTLA].losses += 1;
+            dynamicStatsMap[homeTLA].eliminated = true;
+          }
+        } else {
+          if (hasHome) dynamicStatsMap[homeTLA].draws += 1;
+          if (hasAway) dynamicStatsMap[awayTLA].draws += 1;
+        }
       }
 
       if (m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED') {
@@ -204,17 +219,16 @@ async function sync() {
         const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
         const liveBadgeHTML = `<span data-badge="live" style="background-color: #ef4444; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">${m.status === 'PAUSED' ? "🔥 LIVE (HT)" : "🔥 LIVE"}</span>`;
         
-        liveMatchMap[homeName] = `${liveBadgeHTML}vs ${m.awayTeam.tla} (${homeScore} - ${awayScore})`;
-        liveMatchMap[awayName] = `${liveBadgeHTML}vs ${m.homeTeam.tla} (${awayScore} - ${homeScore})`;
+        if (hasHome) liveMatchMap[dynamicStatsMap[homeTLA].name] = `${liveBadgeHTML}vs ${awayTLA} (${homeScore} - ${awayScore})`;
+        if (hasAway) liveMatchMap[dynamicStatsMap[awayTLA].name] = `${liveBadgeHTML}vs ${homeTLA} (${awayScore} - ${homeScore})`;
       }
     });
 
-    // Run secondary pathing pass to structure upcoming match alerts
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
-        const homeName = m.homeTeam?.name;
-        const awayName = m.awayTeam?.name;
-        if (!homeName || !awayName) return;
+        const homeTLA = m.homeTeam?.tla;
+        const awayTLA = m.awayTeam?.tla;
+        if (!homeTLA || !awayTLA) return;
 
         const kickoffMs = new Date(m.utcDate).getTime();
         const msUntilKickoff = kickoffMs - currentSyncTime.getTime();
@@ -225,21 +239,31 @@ async function sync() {
           badgeHTML = `<span data-badge="countdown" style="background-color: ${hoursRemaining > 24 ? "#262626" : "#ffc107"}; color: ${hoursRemaining > 24 ? "#a3a3a3" : "#000000"}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
-        if (!liveMatchMap[homeName] && !nextMatchMap[homeName]) nextMatchMap[homeName] = `${badgeHTML}vs ${m.awayTeam.tla} • ${formatToAEST(m.utcDate)}`;
-        if (!liveMatchMap[awayName] && !nextMatchMap[awayName]) nextMatchMap[awayName] = `${badgeHTML}vs ${m.homeTeam.tla} • ${formatToAEST(m.utcDate)}`;
+        if (dynamicStatsMap.hasOwnProperty(homeTLA)) {
+          const name = dynamicStatsMap[homeTLA].name;
+          if (!liveMatchMap[name] && !nextMatchMap[name]) nextMatchMap[name] = `${badgeHTML}vs ${awayTLA} • ${formatToAEST(m.utcDate)}`;
+        }
+        if (dynamicStatsMap.hasOwnProperty(awayTLA)) {
+          const name = dynamicStatsMap[awayTLA].name;
+          if (!liveMatchMap[name] && !nextMatchMap[name]) nextMatchMap[name] = `${badgeHTML}vs ${homeTLA} • ${formatToAEST(m.utcDate)}`;
+        }
       }
     });
 
-    const { data: dbTeams, error: dbError } = await supabase.from('world_cup_leaderboard').select('*');
-    if (dbError) throw dbError;
-
     let isAnyLeagueTeamCurrentlyLive = false;
     dbTeams.forEach(team => {
-      if (liveMatchMap[team.country] && !dynamicStatsMap[team.country]?.eliminated) isAnyLeagueTeamCurrentlyLive = true;
+      const teamTLA = team.country_tla || team.country.substring(0, 3).toUpperCase();
+      if (liveMatchMap[team.country] && !dynamicStatsMap[teamTLA]?.eliminated) isAnyLeagueTeamCurrentlyLive = true;
     });
 
-    const currentMockSortedTeams = [...dbTeams].map(team => {
-      const stats = dynamicStatsMap[team.country] || {};
+    // Add country_tla field temporarily for the commentary logic mapping checks
+    const preparedTeams = dbTeams.map(t => ({
+      ...t,
+      country_tla: t.country_tla || t.country.substring(0, 3).toUpperCase()
+    }));
+
+    const currentMockSortedTeams = preparedTeams.map(team => {
+      const stats = dynamicStatsMap[team.country_tla] || {};
       return {
         ...team,
         stageWeight: calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, matchWinnersSet.has(team.country)),
@@ -256,17 +280,18 @@ async function sync() {
     const tickerPayloadString = generateDraftCommentary(allMatches, currentMockSortedTeams);
 
     for (const team of dbTeams) {
-      const stats = dynamicStatsMap[team.country];
+      const teamTLA = team.country_tla || team.country.substring(0, 3).toUpperCase();
+      const stats = dynamicStatsMap[teamTLA];
       const nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || (stats?.eliminated ? "❌ Eliminated" : "TBD");
 
       let dbMatchTime = null;
       let dbMatchResult = null;
       let dbMatchGDChange = 0;
 
-      const lastGame = lastFinishedMatchMap[team.country];
+      const lastGame = lastFinishedMatchMap[teamTLA];
       if (lastGame) {
         dbMatchTime = lastGame.utcDate;
-        const isHome = lastGame.homeTeam.name === team.country;
+        const isHome = lastGame.homeTeam.tla === teamTLA;
         const homeScore = lastGame.score.fullTime.home ?? 0;
         const awayScore = lastGame.score.fullTime.away ?? 0;
         
