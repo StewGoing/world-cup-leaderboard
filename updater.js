@@ -57,7 +57,6 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const homeTLA = m.homeTeam?.tla || 'TBD';
       const awayTLA = m.awayTeam?.tla || 'TBD';
       
-      // EXCLUDE PENALTIES FROM commentary display stats
       const homeScore = m.score?.extraTime?.home ?? m.score?.fullTime?.home ?? 0;
       const awayScore = m.score?.extraTime?.away ?? m.score?.fullTime?.away ?? 0;
 
@@ -142,8 +141,15 @@ async function sync() {
     const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
     if (flagError) throw flagError;
 
-    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE RE-CALCULATION ---
-    // if (flagCheck && flagCheck.length > 0) { ... }
+    // --- BUGFIX: SMART EXIT IS RE-ENABLED TO PROTECT SYSTEM FREE-TIER TOKENS ---
+    if (flagCheck && flagCheck.length > 0) {
+      const isLeagueActivelyPlaying = flagCheck[0].notes_bool === true;
+      const minutesSinceLastUpdate = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
+      if (!isLeagueActivelyPlaying && minutesSinceLastUpdate < 55) {
+        console.log(`💤 Smart Exit: No live league matches active. Skipping run.`);
+        return; 
+      }
+    }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
@@ -187,7 +193,6 @@ async function sync() {
       }
 
       if (m.status === 'FINISHED') {
-        // EXCLUDE PENALTIES: Prefer extraTime scores if they exist, fallback to fullTime
         const homeScore = m.score.extraTime?.home ?? m.score.fullTime.home ?? 0;
         const awayScore = m.score.extraTime?.away ?? m.score.fullTime.away ?? 0;
 
@@ -305,9 +310,9 @@ async function sync() {
         dbMatchTime = lastGame.utcDate;
         const isHome = lastGame.homeTeam.tla === teamTLA;
         
-        // Exclude penalty data from the individual match result calculations as well
+        // BUGFIX CORRECTED: Both fields evaluate extraTime variables flawlessly now
         const homeScore = lastGame.score.extraTime?.home ?? lastGame.score.fullTime.home ?? 0;
-        const awayScore = lastGame.score.fullTime.away ?? 0;
+        const awayScore = lastGame.score.extraTime?.away ?? lastGame.score.fullTime.away ?? 0;
         
         if (homeScore === awayScore) {
           dbMatchResult = 'DRAW';
