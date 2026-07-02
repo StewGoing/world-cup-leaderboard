@@ -31,6 +31,22 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
+// DYNAMIC FIX: Deducts penalty shootout goals from fullTime stats if they exist
+function getCleanMatchScore(matchObject) {
+  let homeScore = matchObject.score?.fullTime?.home ?? 0;
+  let awayScore = matchObject.score?.fullTime?.away ?? 0;
+
+  // If a penalty shootout took place, the API bundles it into fullTime. We strip it out:
+  if (matchObject.score?.penalties?.home !== undefined && matchObject.score?.penalties?.home !== null) {
+    homeScore -= matchObject.score.penalties.home;
+  }
+  if (matchObject.score?.penalties?.away !== undefined && matchObject.score?.penalties?.away !== null) {
+    awayScore -= matchObject.score.penalties.away;
+  }
+
+  return { homeScore, awayScore };
+}
+
 // Generate the news ticker commentary string
 function generateDraftCommentary(allMatches, sortedTeams) {
   const commentaryLines = [];
@@ -57,9 +73,7 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const homeTLA = m.homeTeam?.tla || 'TBD';
       const awayTLA = m.awayTeam?.tla || 'TBD';
       
-      // FIX: Pull absolute final score (90 or 120 mins cumulative) directly from fullTime
-      const homeScore = m.score?.fullTime?.home ?? 0;
-      const awayScore = m.score?.fullTime?.away ?? 0;
+      const { homeScore, awayScore } = getCleanMatchScore(m);
 
       const homeManager = sortedTeams.find(t => t.country_tla === homeTLA)?.manager;
       const awayManager = sortedTeams.find(t => t.country_tla === awayTLA)?.manager;
@@ -147,7 +161,7 @@ async function sync() {
     const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
     if (flagError) throw flagError;
 
-    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE OVERWRITE CORRUPT ROWS ---
+    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE OVERWRITE DATA ---
     // if (flagCheck && flagCheck.length > 0) { ... }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
@@ -192,9 +206,8 @@ async function sync() {
       }
 
       if (m.status === 'FINISHED') {
-        // FIX: Pull cumulative (90 + 120 min) scores directly out of fullTime
-        const homeScore = m.score.fullTime.home ?? 0;
-        const awayScore = m.score.fullTime.away ?? 0;
+        // Use our safety filter to strip shootout goals from total aggregates
+        const { homeScore, awayScore } = getCleanMatchScore(m);
 
         if (hasHome) {
           dynamicStatsMap[homeTLA].gf += homeScore;
@@ -310,9 +323,8 @@ async function sync() {
         dbMatchTime = lastGame.utcDate;
         const isHome = lastGame.homeTeam.tla === teamTLA;
         
-        // FIX: Calculate game margins using total 90/120 minute score configurations
-        const homeScore = lastGame.score.fullTime.home ?? 0;
-        const awayScore = lastGame.score.fullTime.away ?? 0;
+        // Use safety filter to pull penalty-free individual history metrics
+        const { homeScore, awayScore } = getCleanMatchScore(lastGame);
         
         if (lastGame.score.winner === 'HOME_TEAM') {
           dbMatchResult = isHome ? 'WIN' : 'LOSS';
