@@ -56,8 +56,10 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     recentFinishedMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla || 'TBD';
       const awayTLA = m.awayTeam?.tla || 'TBD';
-      const homeScore = m.score?.fullTime?.home ?? 0;
-      const awayScore = m.score?.fullTime?.away ?? 0;
+      
+      // EXCLUDE PENALTIES FROM commentary display stats
+      const homeScore = m.score?.extraTime?.home ?? m.score?.fullTime?.home ?? 0;
+      const awayScore = m.score?.extraTime?.away ?? m.score?.fullTime?.away ?? 0;
 
       const homeManager = sortedTeams.find(t => t.country_tla === homeTLA)?.manager;
       const awayManager = sortedTeams.find(t => t.country_tla === awayTLA)?.manager;
@@ -119,7 +121,7 @@ function generateDraftCommentary(allMatches, sortedTeams) {
   return commentaryLines.join("   •   ");
 }
 
-// BUGFIX TLA DICTIONARY OVERRIDE: Maps text strings directly to stable official FIFA codes
+// Maps country names directly to stable official FIFA codes
 function getOfficialTLA(countryName) {
   const overrides = {
     'SPAIN': 'ESP',
@@ -140,15 +142,8 @@ async function sync() {
     const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
     if (flagError) throw flagError;
 
-    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE RESET THOSE STUCK 0-0-0 ROWS ---
-    // if (flagCheck && flagCheck.length > 0) {
-    //   const isLeagueActivelyPlaying = flagCheck[0].notes_bool === true;
-    //   const minutesSinceLastUpdate = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
-    //   if (!isLeagueActivelyPlaying && minutesSinceLastUpdate < 55) {
-    //     console.log(`💤 Smart Exit: Skipping run.`);
-    //     return; 
-    //   }
-    // }
+    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE RE-CALCULATION ---
+    // if (flagCheck && flagCheck.length > 0) { ... }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
@@ -166,7 +161,6 @@ async function sync() {
     const matchWinnersSet = new Set();
     const dynamicStatsMap = {};
 
-    // Map database teams by their official codes natively
     dbTeams.forEach(team => {
       const teamTLA = getOfficialTLA(team.country);
       dynamicStatsMap[teamTLA] = {
@@ -193,8 +187,9 @@ async function sync() {
       }
 
       if (m.status === 'FINISHED') {
-        const homeScore = m.score.fullTime.home ?? 0;
-        const awayScore = m.score.fullTime.away ?? 0;
+        // EXCLUDE PENALTIES: Prefer extraTime scores if they exist, fallback to fullTime
+        const homeScore = m.score.extraTime?.home ?? m.score.fullTime.home ?? 0;
+        const awayScore = m.score.extraTime?.away ?? m.score.fullTime.away ?? 0;
 
         if (hasHome) {
           dynamicStatsMap[homeTLA].gf += homeScore;
@@ -309,7 +304,9 @@ async function sync() {
       if (lastGame) {
         dbMatchTime = lastGame.utcDate;
         const isHome = lastGame.homeTeam.tla === teamTLA;
-        const homeScore = lastGame.score.fullTime.home ?? 0;
+        
+        // Exclude penalty data from the individual match result calculations as well
+        const homeScore = lastGame.score.extraTime?.home ?? lastGame.score.fullTime.home ?? 0;
         const awayScore = lastGame.score.fullTime.away ?? 0;
         
         if (homeScore === awayScore) {
