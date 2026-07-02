@@ -57,8 +57,9 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       const homeTLA = m.homeTeam?.tla || 'TBD';
       const awayTLA = m.awayTeam?.tla || 'TBD';
       
-      const homeScore = m.score?.extraTime?.home ?? m.score?.fullTime?.home ?? 0;
-      const awayScore = m.score?.extraTime?.away ?? m.score?.fullTime?.away ?? 0;
+      // FIX: Pull absolute final score (90 or 120 mins cumulative) directly from fullTime
+      const homeScore = m.score?.fullTime?.home ?? 0;
+      const awayScore = m.score?.fullTime?.away ?? 0;
 
       const homeManager = sortedTeams.find(t => t.country_tla === homeTLA)?.manager;
       const awayManager = sortedTeams.find(t => t.country_tla === awayTLA)?.manager;
@@ -146,7 +147,7 @@ async function sync() {
     const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
     if (flagError) throw flagError;
 
-    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE COMPLETE RE-CALCULATION ---
+    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE OVERWRITE CORRUPT ROWS ---
     // if (flagCheck && flagCheck.length > 0) { ... }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
@@ -191,10 +192,10 @@ async function sync() {
       }
 
       if (m.status === 'FINISHED') {
-        const homeScore = m.score.extraTime?.home ?? m.score.fullTime.home ?? 0;
-        const awayScore = m.score.extraTime?.away ?? m.score.fullTime.away ?? 0;
+        // FIX: Pull cumulative (90 + 120 min) scores directly out of fullTime
+        const homeScore = m.score.fullTime.home ?? 0;
+        const awayScore = m.score.fullTime.away ?? 0;
 
-        // CRITICAL FIX: Accumulate goals for ALL completed matches, including shootout matches!
         if (hasHome) {
           dynamicStatsMap[homeTLA].gf += homeScore;
           dynamicStatsMap[homeTLA].ga += awayScore;
@@ -206,19 +207,14 @@ async function sync() {
           lastFinishedMatchMap[awayTLA] = m;
         }
 
-        // Evaluate team outcome based on who explicitly advanced or won the fixture
         if (m.score.winner === 'HOME_TEAM') {
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
           }
           if (hasAway) {
-            if (m.stage === 'GROUP_STAGE') {
-              dynamicStatsMap[awayTLA].losses += 1;
-            } else {
-              dynamicStatsMap[awayTLA].losses += 1;
-              dynamicStatsMap[awayTLA].eliminated = true;
-            }
+            dynamicStatsMap[awayTLA].losses += 1;
+            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
           if (hasAway) {
@@ -226,15 +222,10 @@ async function sync() {
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
           }
           if (hasHome) {
-            if (m.stage === 'GROUP_STAGE') {
-              dynamicStatsMap[homeTLA].losses += 1;
-            } else {
-              dynamicStatsMap[homeTLA].losses += 1;
-              dynamicStatsMap[homeTLA].eliminated = true;
-            }
+            dynamicStatsMap[homeTLA].losses += 1;
+            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].eliminated = true;
           }
         } else {
-          // Pure 90-minute group stage draw fallback
           if (hasHome) dynamicStatsMap[homeTLA].draws += 1;
           if (hasAway) dynamicStatsMap[awayTLA].draws += 1;
         }
@@ -319,10 +310,10 @@ async function sync() {
         dbMatchTime = lastGame.utcDate;
         const isHome = lastGame.homeTeam.tla === teamTLA;
         
-        const homeScore = lastGame.score.extraTime?.home ?? lastGame.score.fullTime.home ?? 0;
-        const awayScore = lastGame.score.extraTime?.away ?? lastGame.score.fullTime.away ?? 0;
+        // FIX: Calculate game margins using total 90/120 minute score configurations
+        const homeScore = lastGame.score.fullTime.home ?? 0;
+        const awayScore = lastGame.score.fullTime.away ?? 0;
         
-        // CRITICAL TYPOGRAPHY HIGHLIGHT FIX: If knockout went to penalties, prioritize the advancement winner flag 
         if (lastGame.score.winner === 'HOME_TEAM') {
           dbMatchResult = isHome ? 'WIN' : 'LOSS';
           dbMatchGDChange = isHome ? (homeScore - awayScore) : (awayScore - homeScore);
