@@ -66,28 +66,33 @@ function generateDraftCommentary(allMatches, sortedTeams) {
       if (!homeManager && !awayManager) return;
 
       if (homeManager && awayManager) {
-        if (homeScore === awayScore) {
+        if (m.score.winner === 'DRAW' || (!m.score.winner && homeScore === awayScore)) {
           commentaryLines.push(`📢 DRAW: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA} • ${homeManager} and ${awayManager} ${pickRandom(drawPool)}`);
         } else {
-          const winTLA = homeScore > awayScore ? homeTLA : awayTLA;
-          const winManager = homeScore > awayScore ? homeManager : awayManager;
-          const loseManager = homeScore > awayScore ? awayManager : homeManager;
-          const scoreStr = homeScore > awayScore ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
+          const homeAdvanced = m.score.winner === 'HOME_TEAM';
+          const winTLA = homeAdvanced ? homeTLA : awayTLA;
+          const winManager = homeAdvanced ? homeManager : awayManager;
+          const loseManager = homeAdvanced ? awayManager : homeManager;
+          const scoreStr = homeAdvanced ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
           commentaryLines.push(`⚽ RESULT: ${winManager}'s ${winTLA} defeats ${loseManager} ${scoreStr} • ${pickRandom(winPool)}`);
         }
       } else {
         const activeManager = homeManager || awayManager;
         const activeTLA = homeManager ? homeTLA : awayTLA;
         const oppTLA = homeManager ? awayTLA : homeTLA;
-        const activeScore = homeManager ? homeScore : awayScore;
-        const oppScore = homeManager ? awayScore : homeScore;
+        const isHomeActive = !!homeManager;
+        const activeScore = isHomeActive ? homeScore : awayScore;
+        const oppScore = isHomeActive ? awayScore : homeScore;
 
-        if (activeScore === oppScore) {
+        if (m.score.winner === 'DRAW' || (!m.score.winner && homeScore === awayScore)) {
           commentaryLines.push(`📢 RESULT: ${activeManager} (${activeTLA}) draws ${activeScore}-${oppScore} against ${oppTLA} • ${pickRandom(drawPool)}`);
-        } else if (activeScore > oppScore) {
-          commentaryLines.push(`⚽ RESULT: Big win for ${activeManager} (${activeTLA}), beating ${oppTLA} ${activeScore}-${oppScore} • ${pickRandom(winPool)}`);
         } else {
-          commentaryLines.push(`❌ RESULT: Tough loss for ${activeManager} (${activeTLA}), falling ${activeScore}-${oppScore} to ${oppTLA} • ${pickRandom(losePool)}`);
+          const activeWon = (isHomeActive && m.score.winner === 'HOME_TEAM') || (!isHomeActive && m.score.winner === 'AWAY_TEAM');
+          if (activeWon) {
+            commentaryLines.push(`⚽ RESULT: Big win for ${activeManager} (${activeTLA}), beating ${oppTLA} ${activeScore}-${oppScore} • ${pickRandom(winPool)}`);
+          } else {
+            commentaryLines.push(`❌ RESULT: Tough loss for ${activeManager} (${activeTLA}), falling ${activeScore}-${oppScore} to ${oppTLA} • ${pickRandom(losePool)}`);
+          }
         }
       }
     });
@@ -141,15 +146,8 @@ async function sync() {
     const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
     if (flagError) throw flagError;
 
-    // --- BUGFIX: SMART EXIT IS RE-ENABLED TO PROTECT SYSTEM FREE-TIER TOKENS ---
-    if (flagCheck && flagCheck.length > 0) {
-      const isLeagueActivelyPlaying = flagCheck[0].notes_bool === true;
-      const minutesSinceLastUpdate = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
-      if (!isLeagueActivelyPlaying && minutesSinceLastUpdate < 55) {
-        console.log(`💤 Smart Exit: No live league matches active. Skipping run.`);
-        return; 
-      }
-    }
+    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE COMPLETE RE-CALCULATION ---
+    // if (flagCheck && flagCheck.length > 0) { ... }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
@@ -196,6 +194,7 @@ async function sync() {
         const homeScore = m.score.extraTime?.home ?? m.score.fullTime.home ?? 0;
         const awayScore = m.score.extraTime?.away ?? m.score.fullTime.away ?? 0;
 
+        // CRITICAL FIX: Accumulate goals for ALL completed matches, including shootout matches!
         if (hasHome) {
           dynamicStatsMap[homeTLA].gf += homeScore;
           dynamicStatsMap[homeTLA].ga += awayScore;
@@ -207,14 +206,19 @@ async function sync() {
           lastFinishedMatchMap[awayTLA] = m;
         }
 
+        // Evaluate team outcome based on who explicitly advanced or won the fixture
         if (m.score.winner === 'HOME_TEAM') {
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
           }
           if (hasAway) {
-            dynamicStatsMap[awayTLA].losses += 1;
-            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
+            if (m.stage === 'GROUP_STAGE') {
+              dynamicStatsMap[awayTLA].losses += 1;
+            } else {
+              dynamicStatsMap[awayTLA].losses += 1;
+              dynamicStatsMap[awayTLA].eliminated = true;
+            }
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
           if (hasAway) {
@@ -222,10 +226,15 @@ async function sync() {
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
           }
           if (hasHome) {
-            dynamicStatsMap[homeTLA].losses += 1;
-            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].eliminated = true;
+            if (m.stage === 'GROUP_STAGE') {
+              dynamicStatsMap[homeTLA].losses += 1;
+            } else {
+              dynamicStatsMap[homeTLA].losses += 1;
+              dynamicStatsMap[homeTLA].eliminated = true;
+            }
           }
         } else {
+          // Pure 90-minute group stage draw fallback
           if (hasHome) dynamicStatsMap[homeTLA].draws += 1;
           if (hasAway) dynamicStatsMap[awayTLA].draws += 1;
         }
@@ -310,18 +319,19 @@ async function sync() {
         dbMatchTime = lastGame.utcDate;
         const isHome = lastGame.homeTeam.tla === teamTLA;
         
-        // BUGFIX CORRECTED: Both fields evaluate extraTime variables flawlessly now
         const homeScore = lastGame.score.extraTime?.home ?? lastGame.score.fullTime.home ?? 0;
         const awayScore = lastGame.score.extraTime?.away ?? lastGame.score.fullTime.away ?? 0;
         
-        if (homeScore === awayScore) {
-          dbMatchResult = 'DRAW';
-        } else if ((isHome && homeScore > awayScore) || (!isHome && awayScore > homeScore)) {
-          dbMatchResult = 'WIN';
+        // CRITICAL TYPOGRAPHY HIGHLIGHT FIX: If knockout went to penalties, prioritize the advancement winner flag 
+        if (lastGame.score.winner === 'HOME_TEAM') {
+          dbMatchResult = isHome ? 'WIN' : 'LOSS';
+          dbMatchGDChange = isHome ? (homeScore - awayScore) : (awayScore - homeScore);
+        } else if (lastGame.score.winner === 'AWAY_TEAM') {
+          dbMatchResult = isHome ? 'LOSS' : 'WIN';
           dbMatchGDChange = isHome ? (homeScore - awayScore) : (awayScore - homeScore);
         } else {
-          dbMatchResult = 'LOSS';
-          dbMatchGDChange = isHome ? (homeScore - awayScore) : (awayScore - homeScore);
+          dbMatchResult = 'DRAW';
+          dbMatchGDChange = 0;
         }
       }
 
