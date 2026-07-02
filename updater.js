@@ -119,8 +119,7 @@ function generateDraftCommentary(allMatches, sortedTeams) {
   return commentaryLines.join("   •   ");
 }
 
-// BUGFIX TLA DICTIONARY OVERRIDE
-// Maps names to strict official FIFA three-letter country codes
+// BUGFIX TLA DICTIONARY OVERRIDE: Maps text strings directly to stable official FIFA codes
 function getOfficialTLA(countryName) {
   const overrides = {
     'SPAIN': 'ESP',
@@ -141,14 +140,15 @@ async function sync() {
     const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
     if (flagError) throw flagError;
 
-    if (flagCheck && flagCheck.length > 0) {
-      const isLeagueActivelyPlaying = flagCheck[0].notes_bool === true;
-      const minutesSinceLastUpdate = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
-      if (!isLeagueActivelyPlaying && minutesSinceLastUpdate < 55) {
-        console.log(`💤 Smart Exit: Skipping run.`);
-        return; 
-      }
-    }
+    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE RESET THOSE STUCK 0-0-0 ROWS ---
+    // if (flagCheck && flagCheck.length > 0) {
+    //   const isLeagueActivelyPlaying = flagCheck[0].notes_bool === true;
+    //   const minutesSinceLastUpdate = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
+    //   if (!isLeagueActivelyPlaying && minutesSinceLastUpdate < 55) {
+    //     console.log(`💤 Smart Exit: Skipping run.`);
+    //     return; 
+    //   }
+    // }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
@@ -166,7 +166,7 @@ async function sync() {
     const matchWinnersSet = new Set();
     const dynamicStatsMap = {};
 
-    // Pre-populate our dictionary using the official TLA look-up map
+    // Map database teams by their official codes natively
     dbTeams.forEach(team => {
       const teamTLA = getOfficialTLA(team.country);
       dynamicStatsMap[teamTLA] = {
@@ -212,18 +212,18 @@ async function sync() {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
           }
-          if (hasAway && m.stage !== 'GROUP_STAGE') {
+          if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
-            dynamicStatsMap[awayTLA].eliminated = true; 
+            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
           }
-          if (hasHome && m.stage !== 'GROUP_STAGE') {
+          if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
-            dynamicStatsMap[homeTLA].eliminated = true;
+            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].eliminated = true;
           }
         } else {
           if (hasHome) dynamicStatsMap[homeTLA].draws += 1;
@@ -234,7 +234,8 @@ async function sync() {
       if (m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED') {
         const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
         const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
-        const liveBadgeHTML = `<span data-badge="live" style="background-color: #ef4444; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">${m.status === 'PAUSED' ? "🔥 LIVE (HT)" : "🔥 LIVE"}</span>`;
+        const liveLabelText = m.status === 'PAUSED' ? "🔥 LIVE (HT)" : "🔥 LIVE";
+        const liveBadgeHTML = `<span data-badge="live" style="background-color: #ef4444; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">${liveLabelText}</span>`;
         
         if (hasHome) liveMatchMap[dynamicStatsMap[homeTLA].name] = `${liveBadgeHTML}vs ${awayTLA} (${homeScore} - ${awayScore})`;
         if (hasAway) liveMatchMap[dynamicStatsMap[awayTLA].name] = `${liveBadgeHTML}vs ${homeTLA} (${awayScore} - ${homeScore})`;
