@@ -1,11 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Load environmental variables secured in GitHub Secrets
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const FOOTBALL_DATA_API_KEY = process.env.FOOTBALL_DATA_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// Helper to format timestamps to readable Australian Eastern Standard Time
 function formatToAEST(utcString) {
   if (!utcString) return '';
   const date = new Date(utcString);
@@ -15,6 +17,7 @@ function formatToAEST(utcString) {
   return `${dayPart} ${datePart}, ${timePart}`;
 }
 
+// Hierarchy Calculation: Determines numerical ranking weight based on progress and outcome
 function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) {
   if (!stageString) return 1;
   const stage = stageString.toUpperCase();
@@ -28,6 +31,7 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
+// Generate the news ticker commentary string
 function generateDraftCommentary(allMatches, sortedTeams) {
   const commentaryLines = [];
   const currentExecutionMs = new Date().getTime();
@@ -115,6 +119,20 @@ function generateDraftCommentary(allMatches, sortedTeams) {
   return commentaryLines.join("   •   ");
 }
 
+// BUGFIX TLA DICTIONARY OVERRIDE
+// Maps names to strict official FIFA three-letter country codes
+function getOfficialTLA(countryName) {
+  const overrides = {
+    'SPAIN': 'ESP',
+    'MOROCCO': 'MAR',
+    'NETHERLANDS': 'NED',
+    'ARGENTINA': 'ARG',
+    'COLOMBIA': 'COL'
+  };
+  const key = countryName.toUpperCase().trim();
+  return overrides[key] || key.substring(0, 3);
+}
+
 async function sync() {
   try {
     const currentSyncTime = new Date();
@@ -148,10 +166,9 @@ async function sync() {
     const matchWinnersSet = new Set();
     const dynamicStatsMap = {};
 
-    // Map database teams by their country name safely, ensuring baseline values populate flawlessly
+    // Pre-populate our dictionary using the official TLA look-up map
     dbTeams.forEach(team => {
-      // If your database doesn't have a formal TLA field, fallback to scanning the first 3 chars uppercase
-      const teamTLA = team.country_tla || team.country.substring(0, 3).toUpperCase();
+      const teamTLA = getOfficialTLA(team.country);
       dynamicStatsMap[teamTLA] = {
         wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0,
         stageString: 'GROUP_STAGE', matchStatus: 'TIMED', eliminated: false, name: team.country
@@ -252,14 +269,13 @@ async function sync() {
 
     let isAnyLeagueTeamCurrentlyLive = false;
     dbTeams.forEach(team => {
-      const teamTLA = team.country_tla || team.country.substring(0, 3).toUpperCase();
+      const teamTLA = getOfficialTLA(team.country);
       if (liveMatchMap[team.country] && !dynamicStatsMap[teamTLA]?.eliminated) isAnyLeagueTeamCurrentlyLive = true;
     });
 
-    // Add country_tla field temporarily for the commentary logic mapping checks
     const preparedTeams = dbTeams.map(t => ({
       ...t,
-      country_tla: t.country_tla || t.country.substring(0, 3).toUpperCase()
+      country_tla: getOfficialTLA(t.country)
     }));
 
     const currentMockSortedTeams = preparedTeams.map(team => {
@@ -280,7 +296,7 @@ async function sync() {
     const tickerPayloadString = generateDraftCommentary(allMatches, currentMockSortedTeams);
 
     for (const team of dbTeams) {
-      const teamTLA = team.country_tla || team.country.substring(0, 3).toUpperCase();
+      const teamTLA = getOfficialTLA(team.country);
       const stats = dynamicStatsMap[teamTLA];
       const nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || (stats?.eliminated ? "❌ Eliminated" : "TBD");
 
