@@ -31,7 +31,7 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// Deducts penalty shootout goals from fullTime stats if they exist
+// DYNAMIC FIX: Deducts penalty shootout goals from fullTime stats if they exist
 function getCleanMatchScore(matchObject) {
   let homeScore = matchObject.score?.fullTime?.home ?? 0;
   let awayScore = matchObject.score?.fullTime?.away ?? 0;
@@ -140,7 +140,7 @@ async function sync() {
     const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
     if (flagError) throw flagError;
 
-    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE BRACKET INTERCEPTION ---
+    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE LOG ANALYSIS ---
     // if (flagCheck && flagCheck.length > 0) { ... }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
@@ -158,8 +158,6 @@ async function sync() {
     const lastFinishedMatchMap = {};
     const matchWinnersSet = new Set();
     const dynamicStatsMap = {};
-    
-    // Map tracking who won specific raw match numbers (e.g., Match 53 -> 'POR')
     const matchIdToWinnerTlaMap = {};
 
     dbTeams.forEach(team => {
@@ -240,15 +238,19 @@ async function sync() {
       }
     });
 
-    // Step 2: Advanced Future Schedule Evaluation with Placeholder Interception
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         let homeTLA = m.homeTeam?.tla;
         let awayTLA = m.awayTeam?.tla;
-        
-        // INTERCEPTION BRIDGE: Check if team identities live inside bracket placeholder slots
+
+        // --- CODE-LEVEL DIAGNOSTIC CHECK INSERTION POINT ---
+        if (!homeTLA || !awayTLA) {
+          console.log(`🔍 DEBUG BRACKET STRINGS: Home: [${m.homeTeam?.name}] (TLA: ${m.homeTeam?.tla}) | Away: [${m.awayTeam?.name}] (TLA: ${m.awayTeam?.tla}) | Stage: ${m.stage}`);
+        }
+        // --- END OF CODE-LEVEL DIAGNOSTIC CHECK ---
+
         if (m.homeTeam?.name && m.homeTeam.name.toUpperCase().includes('WINNER MATCH')) {
-          const matchIdStr = m.homeTeam.name.replace(/^\D+/g, ''); // Extract numerical ID
+          const matchIdStr = m.homeTeam.name.replace(/^\D+/g, '');
           if (matchIdToWinnerTlaMap[matchIdStr]) homeTLA = matchIdToWinnerTlaMap[matchIdStr];
         }
         if (m.awayTeam?.name && m.awayTeam.name.toUpperCase().includes('WINNER MATCH')) {
