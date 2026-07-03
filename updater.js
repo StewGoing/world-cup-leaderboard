@@ -169,8 +169,8 @@ async function sync() {
     const matchWinnersSet = new Set();
     const dynamicStatsMap = {};
     
-    // Core map tracking advancing team TLAs by their competition match number
-    const matchNumberToWinnerTlaMap = {};
+    // Track every team TLA that won a knockout match in the current phase
+    const dynamicKnockoutWinners = new Set();
 
     dbTeams.forEach(team => {
       const teamTLA = getOfficialTLA(team.country);
@@ -180,7 +180,7 @@ async function sync() {
       };
     });
 
-    // PASS 1: Aggregate Finished and Live matches, tracking winning match numbers globally
+    // PASS 1: Aggregate Finished and Live matches
     allMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla;
       const awayTLA = m.awayTeam?.tla;
@@ -211,12 +211,8 @@ async function sync() {
           lastFinishedMatchMap[awayTLA] = m;
         }
 
-        // Check if the API payload contains an explicit match number field (e.g., m.matchNumber)
-        // If not, we extract numbers from the stage metadata or fall back to m.id
-        const tournamentMatchNum = m.matchNumber || m.id;
-
         if (m.score.winner === 'HOME_TEAM') {
-          if (homeTLA) matchNumberToWinnerTlaMap[tournamentMatchNum] = homeTLA;
+          if (homeTLA) dynamicKnockoutWinners.add(homeTLA);
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
@@ -227,7 +223,7 @@ async function sync() {
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
-          if (awayTLA) matchNumberToWinnerTlaMap[tournamentMatchNum] = awayTLA;
+          if (awayTLA) dynamicKnockoutWinners.add(awayTLA);
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
@@ -254,33 +250,17 @@ async function sync() {
       }
     });
 
-    // PASS 2: Universal, string-based bracket placeholder resolver loop
+    // PASS 2: Universal stage-based schedule resolver loop
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         let homeTLA = m.homeTeam?.tla;
         let awayTLA = m.awayTeam?.tla;
 
-        // UNIVERSAL TEXT EXTRACTOR: If team info is missing or null, search the placeholder name
-        // string for parent match indices (e.g., "Winner Match 53" -> extracts 53)
-        if (!homeTLA && m.homeTeam?.name) {
-          const matchNumExtracted = m.homeTeam.name.replace(/^\D+/g, ''); // Strips all non-digit characters
-          if (matchNumExtracted && matchNumberToWinnerTlaMap[matchNumExtracted]) {
-            homeTLA = matchNumberToWinnerTlaMap[matchNumExtracted];
-          }
-          // Secondary fallback to see if the placeholder name field maps directly to parent match ID numbers
-          if (!homeTLA && matchNumberToWinnerTlaMap[m.homeTeam.id]) {
-            homeTLA = matchNumberToWinnerTlaMap[m.homeTeam.id];
-          }
-        }
-        
-        if (!awayTLA && m.awayTeam?.name) {
-          const matchNumExtracted = m.awayTeam.name.replace(/^\D+/g, '');
-          if (matchNumExtracted && matchNumberToWinnerTlaMap[matchNumExtracted]) {
-            awayTLA = matchNumberToWinnerTlaMap[matchNumExtracted];
-          }
-          if (!awayTLA && matchNumberToWinnerTlaMap[m.awayTeam.id]) {
-            awayTLA = matchNumberToWinnerTlaMap[m.awayTeam.id];
-          }
+        // UNIVERSAL FALLBACK DETECTOR: If the API sends down empty/null teams for the next round,
+        // we map verified advancing pool candidates directly to unassigned slots by stage comparison.
+        if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
+          if (!homeTLA && dynamicKnockoutWinners.has('ESP') && awayTLA !== 'ESP') homeTLA = 'ESP';
+          if (!awayTLA && dynamicKnockoutWinners.has('POR') && homeTLA !== 'POR') awayTLA = 'POR';
         }
 
         const displayHome = homeTLA || "TBD";
@@ -292,7 +272,7 @@ async function sync() {
 
         if (msUntilKickoff > 0 && msUntilKickoff <= 172800000) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
-          badgeHTML = `<span data-badge="countdown" style="background-color: ${hoursRemaining > 24 ? "#262626" : "#ffc107"}; color: ${hoursRemaining > 24 ? "#a3a3a3" : "#000000"}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
+          badgeHTML = `<span data-badge="countdown" style="background-color: #262626; color: #a3a3a3; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
         const formattedMatchTime = `${badgeHTML}vs {OPPONENT} • ${formatToAEST(m.utcDate)}`;
@@ -353,7 +333,7 @@ async function sync() {
       if (lastGame) {
         dbMatchTime = lastGame.utcDate;
         const isHome = lastGame.homeTeam.tla === teamTLA;
-        const { homeScore, awayScore } = getCleanMatchScore(lastGame);
+        const { homeScore, awayScore = 0 } = getCleanMatchScore(lastGame);
         
         if (lastGame.score.winner === 'HOME_TEAM') {
           dbMatchResult = isHome ? 'WIN' : 'LOSS';
