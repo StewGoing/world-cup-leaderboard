@@ -31,7 +31,7 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// DYNAMIC FIX: Deducts penalty shootout goals from fullTime stats if they exist
+// Deducts penalty shootout goals from fullTime stats if they exist
 function getCleanMatchScore(matchObject) {
   let homeScore = matchObject.score?.fullTime?.home ?? 0;
   let awayScore = matchObject.score?.fullTime?.away ?? 0;
@@ -137,11 +137,23 @@ async function sync() {
     const currentSyncTime = new Date();
     const currentSyncTimeISO = currentSyncTime.toISOString();
 
+    // ADAPTIVE SCHEDULER: Check database metadata flags before running heavy requests
     const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
     if (flagError) throw flagError;
 
-    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE LOG ANALYSIS ---
-    // if (flagCheck && flagCheck.length > 0) { ... }
+    if (flagCheck && flagCheck.length > 0) {
+      const isGameCurrentlyLive = flagCheck[0].notes_bool === true;
+      const minutesSinceLastDatabaseWrite = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
+      
+      // If no game is live right now AND a game didn't wrap up within the last 60 minutes...
+      if (!isGameCurrentlyLive && minutesSinceLastDatabaseWrite >= 60) {
+        // ...fall back to a relaxed hourly update rate (~55 min pause cushion)
+        if (minutesSinceLastDatabaseWrite < 55) {
+          console.log(`💤 Smart Exit: Passive window active (${Math.round(minutesSinceLastDatabaseWrite)}m elapsed). Hibernating to preserve API calls.`);
+          return; 
+        }
+      }
+    }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
@@ -168,13 +180,13 @@ async function sync() {
       };
     });
 
+    // PASS 1: Aggregate Finished and Live matches
     allMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla;
       const awayTLA = m.awayTeam?.tla;
-      if (!homeTLA || !awayTLA) return;
 
-      const hasHome = dynamicStatsMap.hasOwnProperty(homeTLA);
-      const hasAway = dynamicStatsMap.hasOwnProperty(awayTLA);
+      const hasHome = homeTLA ? dynamicStatsMap.hasOwnProperty(homeTLA) : false;
+      const hasAway = awayTLA ? dynamicStatsMap.hasOwnProperty(awayTLA) : false;
 
       if (hasHome) {
         dynamicStatsMap[homeTLA].stageString = m.stage;
@@ -200,7 +212,7 @@ async function sync() {
         }
 
         if (m.score.winner === 'HOME_TEAM') {
-          matchIdToWinnerTlaMap[m.id] = homeTLA;
+          if (homeTLA) matchIdToWinnerTlaMap[m.id] = homeTLA;
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
@@ -211,7 +223,7 @@ async function sync() {
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
-          matchIdToWinnerTlaMap[m.id] = awayTLA;
+          if (awayTLA) matchIdToWinnerTlaMap[m.id] = awayTLA;
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
@@ -238,27 +250,44 @@ async function sync() {
       }
     });
 
+    // PASS 2: Trace lineage of empty knockout bracket connections dynamically
+    const knockoutScheduleLineage = {};
+    allMatches.forEach(m => {
+      if (m.stage !== 'GROUP_STAGE' && m.status === 'FINISHED') {
+        allMatches.forEach(futureMatch => {
+          if (futureMatch.status === 'TIMED' || futureMatch.status === 'SCHEDULED') {
+            if (futureMatch.homeTeam?.id === m.id || (futureMatch.homeTeam?.name && futureMatch.homeTeam.name.includes(String(m.id)))) {
+              knockoutScheduleLineage[`${futureMatch.id}_home`] = m.id;
+            }
+            if (futureMatch.awayTeam?.id === m.id || (futureMatch.awayTeam?.name && futureMatch.awayTeam.name.includes(String(m.id)))) {
+              knockoutScheduleLineage[`${futureMatch.id}_away`] = m.id;
+            }
+          }
+        });
+      }
+    });
+
+    // PASS 3: Process scheduled matches with dynamic fallback resolution
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         let homeTLA = m.homeTeam?.tla;
         let awayTLA = m.awayTeam?.tla;
 
-        // --- CODE-LEVEL DIAGNOSTIC CHECK INSERTION POINT ---
-        if (!homeTLA || !awayTLA) {
-          console.log(`🔍 DEBUG BRACKET STRINGS: Home: [${m.homeTeam?.name}] (TLA: ${m.homeTeam?.tla}) | Away: [${m.awayTeam?.name}] (TLA: ${m.awayTeam?.tla}) | Stage: ${m.stage}`);
+        if (!homeTLA) {
+          const parentMatchId = knockoutScheduleLineage[`${m.id}_home`] || (m.homeTeam?.id);
+          if (parentMatchId && matchIdToWinnerTlaMap[parentMatchId]) {
+            homeTLA = matchIdToWinnerTlaMap[parentMatchId];
+          }
         }
-        // --- END OF CODE-LEVEL DIAGNOSTIC CHECK ---
-
-        if (m.homeTeam?.name && m.homeTeam.name.toUpperCase().includes('WINNER MATCH')) {
-          const matchIdStr = m.homeTeam.name.replace(/^\D+/g, '');
-          if (matchIdToWinnerTlaMap[matchIdStr]) homeTLA = matchIdToWinnerTlaMap[matchIdStr];
-        }
-        if (m.awayTeam?.name && m.awayTeam.name.toUpperCase().includes('WINNER MATCH')) {
-          const matchIdStr = m.awayTeam.name.replace(/^\D+/g, '');
-          if (matchIdToWinnerTlaMap[matchIdStr]) awayTLA = matchIdToWinnerTlaMap[matchIdStr];
+        if (!awayTLA) {
+          const parentMatchId = knockoutScheduleLineage[`${m.id}_away`] || (m.awayTeam?.id);
+          if (parentMatchId && matchIdToWinnerTlaMap[parentMatchId]) {
+            awayTLA = matchIdToWinnerTlaMap[parentMatchId];
+          }
         }
 
-        if (!homeTLA || !awayTLA) return;
+        const displayHome = homeTLA || "TBD";
+        const displayAway = awayTLA || "TBD";
 
         const kickoffMs = new Date(m.utcDate).getTime();
         const msUntilKickoff = kickoffMs - currentSyncTime.getTime();
@@ -271,16 +300,16 @@ async function sync() {
 
         const formattedMatchTime = `${badgeHTML}vs {OPPONENT} • ${formatToAEST(m.utcDate)}`;
 
-        if (dynamicStatsMap.hasOwnProperty(homeTLA)) {
+        if (homeTLA && dynamicStatsMap.hasOwnProperty(homeTLA)) {
           const name = dynamicStatsMap[homeTLA].name;
           if (!liveMatchMap[name] && !nextMatchMap[name]) {
-            nextMatchMap[name] = formattedMatchTime.replace('{OPPONENT}', awayTLA);
+            nextMatchMap[name] = formattedMatchTime.replace('{OPPONENT}', displayAway);
           }
         }
-        if (dynamicStatsMap.hasOwnProperty(awayTLA)) {
+        if (awayTLA && dynamicStatsMap.hasOwnProperty(awayTLA)) {
           const name = dynamicStatsMap[awayTLA].name;
           if (!liveMatchMap[name] && !nextMatchMap[name]) {
-            nextMatchMap[name] = formattedMatchTime.replace('{OPPONENT}', homeTLA);
+            nextMatchMap[name] = formattedMatchTime.replace('{OPPONENT}', displayHome);
           }
         }
       }
