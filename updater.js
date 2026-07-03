@@ -36,7 +36,6 @@ function getCleanMatchScore(matchObject) {
   let homeScore = matchObject.score?.fullTime?.home ?? 0;
   let awayScore = matchObject.score?.fullTime?.away ?? 0;
 
-  // If a penalty shootout took place, the API bundles it into fullTime. We strip it out:
   if (matchObject.score?.penalties?.home !== undefined && matchObject.score?.penalties?.home !== null) {
     homeScore -= matchObject.score.penalties.home;
   }
@@ -45,6 +44,16 @@ function getCleanMatchScore(matchObject) {
   }
 
   return { homeScore, awayScore };
+}
+
+// Helper to instantly promote a team's stage status string upon securing a knockout victory
+function getAdvancedStage(currentStage) {
+  const stage = currentStage.toUpperCase();
+  if (stage.includes('LAST_32') || stage.includes('ROUND_OF_32')) return 'ROUND_OF_16';
+  if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) return 'QUARTER_FINALS';
+  if (stage.includes('QUARTER')) return 'SEMI_FINALS';
+  if (stage.includes('SEMI')) return 'FINAL'; // Note: Finals bound tracking logic sets context weights later
+  return currentStage;
 }
 
 // Generate the news ticker commentary string
@@ -161,7 +170,7 @@ async function sync() {
     const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
     if (flagError) throw flagError;
 
-    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE OVERWRITE DATA ---
+    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE OVERWRITE CORRUPTED ROW LABELS ---
     // if (flagCheck && flagCheck.length > 0) { ... }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
@@ -188,6 +197,7 @@ async function sync() {
       };
     });
 
+    // Step 1: Sequential processing loop to trace data history logs
     allMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla;
       const awayTLA = m.awayTeam?.tla;
@@ -206,7 +216,6 @@ async function sync() {
       }
 
       if (m.status === 'FINISHED') {
-        // Use our safety filter to strip shootout goals from total aggregates
         const { homeScore, awayScore } = getCleanMatchScore(m);
 
         if (hasHome) {
@@ -224,6 +233,10 @@ async function sync() {
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
+            // CRITICAL UPGRADE BUGFIX: Force instant promotion upon securing knockout victory
+            if (m.stage !== 'GROUP_STAGE') {
+              dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage);
+            }
           }
           if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
@@ -233,6 +246,10 @@ async function sync() {
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
+            // CRITICAL UPGRADE BUGFIX: Force instant promotion upon securing knockout victory
+            if (m.stage !== 'GROUP_STAGE') {
+              dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage);
+            }
           }
           if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
@@ -323,7 +340,6 @@ async function sync() {
         dbMatchTime = lastGame.utcDate;
         const isHome = lastGame.homeTeam.tla === teamTLA;
         
-        // Use safety filter to pull penalty-free individual history metrics
         const { homeScore, awayScore } = getCleanMatchScore(lastGame);
         
         if (lastGame.score.winner === 'HOME_TEAM') {
