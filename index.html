@@ -287,3 +287,98 @@
             <td class="py-4 px-4 text-center font-mono text-sm font-bold whitespace-nowrap tracking-wide">
               <span class="${winDigitStyle}">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${drawDigitStyle}">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${lossDigitStyle}">${lossesCount}</span>
             </td>
+            
+            <td class="py-4 px-4 font-mono">
+              <div class="flex items-center justify-center gap-2">
+                <span class="font-bold text-sm w-5 text-right ${recentGDStyle}">
+                  ${team.gd > 0 ? '+' + team.gd : team.gd}
+                </span>
+                <div class="flex flex-col text-left text-[9px] font-sans font-bold text-neutral-500/90 leading-tight border-l border-neutral-800/80 pl-2 shrink-0 select-none">
+                  <span>F: ${goalsFor}</span>
+                  <span>A: ${goalsAgainst}</span>
+                </div>
+              </div>
+            </td>
+            
+            <td class="py-4 px-4 text-center font-mono text-neutral-300 text-sm font-bold tracking-tight">${Number(team.odds).toFixed(1)}</td>
+            <td class="py-4 pl-4 pr-16 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">
+              ${ftBadgeHTML}${matchString}
+            </td>
+          `;
+          desktopBody.appendChild(dRow);
+
+          // --- MOBILE BADGE PLACEMENT PROCESSING ---
+          let badgeHTMLSnippet = "";
+          let cleanMatchString = matchString;
+
+          if (matchString.includes('<span')) {
+            const closingSpanIndex = matchString.indexOf('</span>') + 7;
+            badgeHTMLSnippet = matchString.substring(0, closingSpanIndex);
+            cleanMatchString = matchString.substring(closingSpanIndex).trim();
+          }
+          
+          if (badgeHTMLSnippet !== "") {
+            badgeHTMLSnippet = badgeHTMLSnippet.replace('font-size: 11px;', 'font-size: 10px;');
+          }
+
+          // --- MOBILE RENDER ---
+          const mCard = document.createElement('div');
+          mCard.className = mobileCardClass;
+          mCard.innerHTML = `
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0 flex-1 flex-nowrap">
+                <div class="text-sm font-black w-8 h-8 rounded-lg bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner shrink-0 ${pickColor}">#${pick}</div>
+                <div class="min-w-0 flex-1">
+                  <p class="font-black text-white tracking-wide text-sm truncate uppercase leading-tight ${isEliminated ? 'text-neutral-400 font-bold' : ''}">${team.manager}</p>
+                  <div class="text-neutral-400 text-xs flex items-center gap-1.5 mt-0.5 font-medium flex-nowrap min-w-0">
+                    <span class="shrink-0 text-base">${team.flag}</span>
+                    <span class="truncate tracking-wider text-xs font-bold uppercase text-neutral-200 min-w-0">${team.country}</span>
+                    <span class="text-[9px] px-1.5 py-0.5 bg-neutral-950 rounded font-black uppercase shrink-0 ${isEliminated ? 'text-neutral-500' : stageLabelColor.split(' ')[0]}">${STAGES[team.stage] || "Group"}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="flex items-center gap-2 font-mono shrink-0 select-none text-center">
+                <div class="flex flex-col items-center w-11">
+                  <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W-D-L</span>
+                  <span class="text-sm font-bold mt-0.5 whitespace-nowrap tracking-tighter">
+                    <span class="${winDigitStyle}">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${drawDigitStyle}">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${lossDigitStyle}">${lossesCount}</span>
+                  </span>
+                </div>
+                
+                <div class="flex flex-col items-center border-l border-neutral-800 pl-1.5 w-8">
+                  <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
+                  <span class="text-sm font-black mt-0.5 ${recentGDStyle}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
+                </div>
+                
+                <div class="flex flex-col items-center border-l border-neutral-800 pl-1.5 w-8">
+                  <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">Odds</span>
+                  <span class="text-sm text-neutral-300 font-bold mt-0.5">${Number(team.odds).toFixed(0)}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[10px] font-mono mt-0.5">
+              <div class="flex items-center shrink-0">
+                ${ftBadgeHTML || badgeHTMLSnippet}
+                <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider text-[9px]">Next up:</span>
+              </div>
+              <span class="text-neutral-400 font-semibold text-right flex-1 ml-3 truncate">${cleanMatchString}</span>
+            </div>
+          `;
+          mobileContainer.appendChild(mCard);
+        });
+
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('board-wrapper').classList.remove('hidden');
+      } catch (err) {
+        document.getElementById('loading').innerText = "An unexpected interface error occurred.";
+      }
+    }
+
+    loadLeaderboard().then(() => {
+      logAnonymousPageView();
+    });
+  </script>
+</body>
+</html>
