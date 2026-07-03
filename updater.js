@@ -31,7 +31,7 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   return 1;
 }
 
-// DYNAMIC FIX: Deducts penalty shootout goals from fullTime stats if they exist
+// Deducts penalty shootout goals from fullTime stats if they exist
 function getCleanMatchScore(matchObject) {
   let homeScore = matchObject.score?.fullTime?.home ?? 0;
   let awayScore = matchObject.score?.fullTime?.away ?? 0;
@@ -52,8 +52,21 @@ function getAdvancedStage(currentStage) {
   if (stage.includes('LAST_32') || stage.includes('ROUND_OF_32')) return 'ROUND_OF_16';
   if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) return 'QUARTER_FINALS';
   if (stage.includes('QUARTER')) return 'SEMI_FINALS';
-  if (stage.includes('SEMI')) return 'FINAL'; // Note: Finals bound tracking logic sets context weights later
+  if (stage.includes('SEMI')) return 'FINAL';
   return currentStage;
+}
+
+// Maps country names directly to stable official FIFA codes
+function getOfficialTLA(countryName) {
+  const overrides = {
+    'SPAIN': 'ESP',
+    'MOROCCO': 'MAR',
+    'NETHERLANDS': 'NED',
+    'ARGENTINA': 'ARG',
+    'COLOMBIA': 'COL'
+  };
+  const key = countryName.toUpperCase().trim();
+  return overrides[key] || key.substring(0, 3);
 }
 
 // Generate the news ticker commentary string
@@ -65,25 +78,18 @@ function generateDraftCommentary(allMatches, sortedTeams) {
   const winPool = ["Complete and utter dominance.", "Statement made.", "Leaderboard shaking up.", "Pure tactical masterclass."];
   const losePool = ["Back to the drawing board.", "That is going to hurt.", "Disaster class."];
   const drawPool = ["They completely cancel each other out.", "A tight, nervous tactical gridlock.", "Shared points."];
-  const livePool = ["Blood pressure rising rapidly.", "Absolute pure drama unfolding right now."];
-  const topPool = ["Enjoys the view from the summit.", "Setting the pace. Can anyone actually catch them?"];
-  const bottomPool = ["Anchors the table.", "Holding onto the wooden spoon."];
-  const fontHypePool = ["Massive test incoming. Pray for them.", "Huge stakes on the line."];
 
   const recentFinishedMatches = allMatches.filter(m => {
     if (m.status !== 'FINISHED') return false;
     const matchEndMs = new Date(m.utcDate).getTime();
-    const gapMs = currentExecutionMs - matchEndMs;
-    return gapMs > 0 && gapMs <= (86400000 + 7200000); 
+    return (currentExecutionMs - matchEndMs) <= (86400000 + 7200000); 
   });
 
   if (recentFinishedMatches.length > 0) {
     recentFinishedMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla || 'TBD';
       const awayTLA = m.awayTeam?.tla || 'TBD';
-      
       const { homeScore, awayScore } = getCleanMatchScore(m);
-
       const homeManager = sortedTeams.find(t => t.country_tla === homeTLA)?.manager;
       const awayManager = sortedTeams.find(t => t.country_tla === awayTLA)?.manager;
 
@@ -94,11 +100,8 @@ function generateDraftCommentary(allMatches, sortedTeams) {
           commentaryLines.push(`📢 DRAW: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA} • ${homeManager} and ${awayManager} ${pickRandom(drawPool)}`);
         } else {
           const homeAdvanced = m.score.winner === 'HOME_TEAM';
-          const winTLA = homeAdvanced ? homeTLA : awayTLA;
-          const winManager = homeAdvanced ? homeManager : awayManager;
-          const loseManager = homeAdvanced ? awayManager : homeManager;
           const scoreStr = homeAdvanced ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
-          commentaryLines.push(`⚽ RESULT: ${winManager}'s ${winTLA} defeats ${loseManager} ${scoreStr} • ${pickRandom(winPool)}`);
+          commentaryLines.push(`⚽ RESULT: ${homeAdvanced ? homeManager : awayManager}'s ${homeAdvanced ? homeTLA : awayTLA} defeats ${homeAdvanced ? awayManager : homeManager} ${scoreStr} • ${pickRandom(winPool)}`);
         }
       } else {
         const activeManager = homeManager || awayManager;
@@ -122,44 +125,11 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     });
   }
 
-  const liveMatches = allMatches.filter(m => m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED');
-  if (liveMatches.length > 0) {
-    liveMatches.forEach(m => {
-      const homeTLA = m.homeTeam?.tla || 'TBD';
-      const awayTLA = m.awayTeam?.tla || 'TBD';
-      const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
-      const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
-      const homeManager = sortedTeams.find(t => t.country_tla === homeTLA)?.manager;
-      const awayManager = sortedTeams.find(t => t.country_tla === awayTLA)?.manager;
-
-      if (!homeManager && !awayManager) return;
-      const statusSuffix = m.status === 'PAUSED' ? ' (HT)' : '';
-      if (homeManager && awayManager) {
-        commentaryLines.push(`🔥 LIVE MATCH: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA}${statusSuffix} • ${homeManager} vs ${awayManager} ${pickRandom(livePool)}`);
-      } else {
-        commentaryLines.push(`🔥 LIVE: ${homeTLA} ${homeScore}-${awayScore} ${awayTLA}${statusSuffix} • ${homeManager || awayManager} is sweating on this...`);
-      }
-    });
-  }
-
   if (sortedTeams.length >= 2) {
-    commentaryLines.push(`👑 LEADER: ${sortedTeams[0].manager} ${pickRandom(topPool)}`, `🥄 Spoon Watch: ${sortedTeams[sortedTeams.length - 1].manager} ${pickRandom(bottomPool)}`);
+    commentaryLines.push(`👑 LEADER: ${sortedTeams[0].manager} Enjoys the view from the summit.`, `🥄 Spoon Watch: ${sortedTeams[sortedTeams.length - 1].manager} Anchors the table.`);
   }
 
   return commentaryLines.join("   •   ");
-}
-
-// Maps country names directly to stable official FIFA codes
-function getOfficialTLA(countryName) {
-  const overrides = {
-    'SPAIN': 'ESP',
-    'MOROCCO': 'MAR',
-    'NETHERLANDS': 'NED',
-    'ARGENTINA': 'ARG',
-    'COLOMBIA': 'COL'
-  };
-  const key = countryName.toUpperCase().trim();
-  return overrides[key] || key.substring(0, 3);
 }
 
 async function sync() {
@@ -170,7 +140,7 @@ async function sync() {
     const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
     if (flagError) throw flagError;
 
-    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE OVERWRITE CORRUPTED ROW LABELS ---
+    // --- TEMPORARILY DISABLED SMART EXIT TO FORCE BRACKET INTERCEPTION ---
     // if (flagCheck && flagCheck.length > 0) { ... }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
@@ -188,6 +158,9 @@ async function sync() {
     const lastFinishedMatchMap = {};
     const matchWinnersSet = new Set();
     const dynamicStatsMap = {};
+    
+    // Map tracking who won specific raw match numbers (e.g., Match 53 -> 'POR')
+    const matchIdToWinnerTlaMap = {};
 
     dbTeams.forEach(team => {
       const teamTLA = getOfficialTLA(team.country);
@@ -197,7 +170,6 @@ async function sync() {
       };
     });
 
-    // Step 1: Sequential processing loop to trace data history logs
     allMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla;
       const awayTLA = m.awayTeam?.tla;
@@ -230,26 +202,22 @@ async function sync() {
         }
 
         if (m.score.winner === 'HOME_TEAM') {
+          matchIdToWinnerTlaMap[m.id] = homeTLA;
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
-            // CRITICAL UPGRADE BUGFIX: Force instant promotion upon securing knockout victory
-            if (m.stage !== 'GROUP_STAGE') {
-              dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage);
-            }
+            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage);
           }
           if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
+          matchIdToWinnerTlaMap[m.id] = awayTLA;
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
-            // CRITICAL UPGRADE BUGFIX: Force instant promotion upon securing knockout victory
-            if (m.stage !== 'GROUP_STAGE') {
-              dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage);
-            }
+            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage);
           }
           if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
@@ -272,10 +240,22 @@ async function sync() {
       }
     });
 
+    // Step 2: Advanced Future Schedule Evaluation with Placeholder Interception
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
-        const homeTLA = m.homeTeam?.tla;
-        const awayTLA = m.awayTeam?.tla;
+        let homeTLA = m.homeTeam?.tla;
+        let awayTLA = m.awayTeam?.tla;
+        
+        // INTERCEPTION BRIDGE: Check if team identities live inside bracket placeholder slots
+        if (m.homeTeam?.name && m.homeTeam.name.toUpperCase().includes('WINNER MATCH')) {
+          const matchIdStr = m.homeTeam.name.replace(/^\D+/g, ''); // Extract numerical ID
+          if (matchIdToWinnerTlaMap[matchIdStr]) homeTLA = matchIdToWinnerTlaMap[matchIdStr];
+        }
+        if (m.awayTeam?.name && m.awayTeam.name.toUpperCase().includes('WINNER MATCH')) {
+          const matchIdStr = m.awayTeam.name.replace(/^\D+/g, '');
+          if (matchIdToWinnerTlaMap[matchIdStr]) awayTLA = matchIdToWinnerTlaMap[matchIdStr];
+        }
+
         if (!homeTLA || !awayTLA) return;
 
         const kickoffMs = new Date(m.utcDate).getTime();
@@ -287,13 +267,19 @@ async function sync() {
           badgeHTML = `<span data-badge="countdown" style="background-color: ${hoursRemaining > 24 ? "#262626" : "#ffc107"}; color: ${hoursRemaining > 24 ? "#a3a3a3" : "#000000"}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
+        const formattedMatchTime = `${badgeHTML}vs {OPPONENT} • ${formatToAEST(m.utcDate)}`;
+
         if (dynamicStatsMap.hasOwnProperty(homeTLA)) {
           const name = dynamicStatsMap[homeTLA].name;
-          if (!liveMatchMap[name] && !nextMatchMap[name]) nextMatchMap[name] = `${badgeHTML}vs ${awayTLA} • ${formatToAEST(m.utcDate)}`;
+          if (!liveMatchMap[name] && !nextMatchMap[name]) {
+            nextMatchMap[name] = formattedMatchTime.replace('{OPPONENT}', awayTLA);
+          }
         }
         if (dynamicStatsMap.hasOwnProperty(awayTLA)) {
           const name = dynamicStatsMap[awayTLA].name;
-          if (!liveMatchMap[name] && !nextMatchMap[name]) nextMatchMap[name] = `${badgeHTML}vs ${homeTLA} • ${formatToAEST(m.utcDate)}`;
+          if (!liveMatchMap[name] && !nextMatchMap[name]) {
+            nextMatchMap[name] = formattedMatchTime.replace('{OPPONENT}', homeTLA);
+          }
         }
       }
     });
@@ -339,7 +325,6 @@ async function sync() {
       if (lastGame) {
         dbMatchTime = lastGame.utcDate;
         const isHome = lastGame.homeTeam.tla === teamTLA;
-        
         const { homeScore, awayScore } = getCleanMatchScore(lastGame);
         
         if (lastGame.score.winner === 'HOME_TEAM') {
