@@ -1,8 +1,8 @@
 name: Live World Cup Standings Sync
 on:
   schedule:
-    - cron: '*/15 * * * *'  # Executes every 15 minutes
-  workflow_dispatch:        # Keeps the manual button active
+    - cron: '*/5 * * * *'  # Requests an execution loop every 5 minutes to beat GitHub throttling
+  workflow_dispatch:       # Keeps the manual override button active
 jobs:
   update-data:
     runs-on: ubuntu-latest
