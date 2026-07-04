@@ -169,9 +169,9 @@ async function sync() {
     const matchWinnersSet = new Set();
     const dynamicStatsMap = {};
     
-    // Maps both match sequence numbers AND database team IDs directly to verified winner codes
-    const matchNumberToWinnerTlaMap = {};
-    const teamIdToVerifiedWinnerTlaMap = {};
+    // Core dictionary mappings for tournament flow logic
+    const finishedMatchWinnerTLAs = {};
+    const teamNameToTlaMap = {};
 
     dbTeams.forEach(team => {
       const teamTLA = getOfficialTLA(team.country);
@@ -181,10 +181,13 @@ async function sync() {
       };
     });
 
-    // PASS 1: Aggregate Finished and Live matches, indexing verified winners by team ID and match number
+    // PASS 1: Aggregate Finished and Live matches, building name-to-TLA references natively
     allMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla;
       const awayTLA = m.awayTeam?.tla;
+
+      if (m.homeTeam?.name && homeTLA) teamNameToTlaMap[m.homeTeam.name.toUpperCase().trim()] = homeTLA;
+      if (m.awayTeam?.name && awayTLA) teamNameToTlaMap[m.awayTeam.name.toUpperCase().trim()] = awayTLA;
 
       const hasHome = homeTLA ? dynamicStatsMap.hasOwnProperty(homeTLA) : false;
       const hasAway = awayTLA ? dynamicStatsMap.hasOwnProperty(awayTLA) : false;
@@ -212,13 +215,8 @@ async function sync() {
           lastFinishedMatchMap[awayTLA] = m;
         }
 
-        const tournamentMatchNum = String(m.matchNumber || m.id);
-
         if (m.score.winner === 'HOME_TEAM') {
-          if (homeTLA) {
-            matchNumberToWinnerTlaMap[tournamentMatchNum] = homeTLA;
-            if (m.homeTeam.id) teamIdToVerifiedWinnerTlaMap[m.homeTeam.id] = homeTLA;
-          }
+          if (homeTLA) finishedMatchWinnerTLAs[m.id] = homeTLA;
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
@@ -229,10 +227,7 @@ async function sync() {
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
-          if (awayTLA) {
-            matchNumberToWinnerTlaMap[tournamentMatchNum] = awayTLA;
-            if (m.awayTeam.id) teamIdToVerifiedWinnerTlaMap[m.awayTeam.id] = awayTLA;
-          }
+          if (awayTLA) finishedMatchWinnerTLAs[m.id] = awayTLA;
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
@@ -259,29 +254,66 @@ async function sync() {
       }
     });
 
-    // PASS 2: Universal stage-independent schedule resolver loop
+    // PASS 2: Universal, structurally absolute match lineage identifier loop
+    const bracketLineageMap = {};
+    allMatches.forEach(parentMatch => {
+      if (parentMatch.stage !== 'GROUP_STAGE' && parentMatch.status === 'FINISHED') {
+        allMatches.forEach(childMatch => {
+          if (childMatch.status === 'TIMED' || childMatch.status === 'SCHEDULED') {
+            const matchesHomePlaceholder = childMatch.homeTeam?.id === parentMatch.id || 
+                                           (childMatch.homeTeam?.name && childMatch.homeTeam.name.includes(String(parentMatch.id)));
+            const matchesAwayPlaceholder = childMatch.awayTeam?.id === parentMatch.id || 
+                                           (childMatch.awayTeam?.name && childMatch.awayTeam.name.includes(String(parentMatch.id)));
+            
+            if (matchesHomePlaceholder) bracketLineageMap[`${childMatch.id}_home`] = parentMatch.id;
+            if (matchesAwayPlaceholder) bracketLineageMap[`${childMatch.id}_away`] = parentMatch.id;
+          }
+        });
+      }
+    });
+
+    // PASS 3: Process scheduled matches with placeholder text-parsing fallback overrides
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         let homeTLA = m.homeTeam?.tla;
         let awayTLA = m.awayTeam?.tla;
 
-        // 1. DYNAMIC TEAM-ID MAPPING: Check if the unplayed bracket slot's structural team ID 
-        // matches a team code we recorded as a winner in Pass 1.
-        if (!homeTLA && m.homeTeam?.id && teamIdToVerifiedWinnerTlaMap[m.homeTeam.id]) {
-          homeTLA = teamIdToVerifiedWinnerTlaMap[m.homeTeam.id];
+        // Trace structural parent matches via connection lineages
+        if (!homeTLA) {
+          const parentId = bracketLineageMap[`${m.id}_home`] || m.homeTeam?.id;
+          if (parentId && finishedMatchWinnerTLAs[parentId]) homeTLA = finishedMatchWinnerTLAs[parentId];
         }
-        if (!awayTLA && m.awayTeam?.id && teamIdToVerifiedWinnerTlaMap[m.awayTeam.id]) {
-          awayTLA = teamIdToVerifiedWinnerTlaMap[m.awayTeam.id];
+        if (!awayTLA) {
+          const parentId = bracketLineageMap[`${m.id}_away`] || m.awayTeam?.id;
+          if (parentId && finishedMatchWinnerTLAs[parentId]) awayTLA = finishedMatchWinnerTLAs[parentId];
         }
 
-        // 2. TEXT-STRING PLACEHOLDER LOOKUP fallback: Scans text strings for digit sequence matching
+        // Try direct string-name dictionary conversions for teams parsed from standard updates
         if (!homeTLA && m.homeTeam?.name) {
-          const digits = m.homeTeam.name.match(/\d+/);
-          if (digits && matchNumberToWinnerTlaMap[digits[0]]) homeTLA = matchNumberToWinnerTlaMap[digits[0]];
+          const lookupKey = m.homeTeam.name.toUpperCase().trim();
+          if (teamNameToTlaMap[lookupKey]) homeTLA = teamNameToTlaMap[lookupKey];
         }
         if (!awayTLA && m.awayTeam?.name) {
-          const digits = m.awayTeam.name.match(/\d+/);
-          if (digits && matchNumberToWinnerTlaMap[digits[0]]) awayTLA = matchNumberToWinnerTlaMap[digits[0]];
+          const lookupKey = m.awayTeam.name.toUpperCase().trim();
+          if (teamNameToTlaMap[lookupKey]) awayTLA = teamNameToTlaMap[lookupKey];
+        }
+
+        // --- STAGE OVERRIDE DETECTOR BLOCK ---
+        // Loops through all resolved parent matches to see if an advanced team matches the description text
+        if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
+          const finishedParentMatches = allMatches.filter(pm => pm.status === 'FINISHED');
+          
+          finishedParentMatches.forEach(pm => {
+            const winnerCode = finishedMatchWinnerTLAs[pm.id];
+            if (!winnerCode) return;
+
+            // Direct content inspection checks
+            const isHomePlaceholderMatch = m.homeTeam?.name && (m.homeTeam.name.includes(String(pm.id)) || m.homeTeam.name.includes(pm.homeTeam?.name) || m.homeTeam.name.includes(pm.awayTeam?.name));
+            const isAwayPlaceholderMatch = m.awayTeam?.name && (m.awayTeam.name.includes(String(pm.id)) || m.awayTeam.name.includes(pm.homeTeam?.name) || m.awayTeam.name.includes(pm.awayTeam?.name));
+
+            if (isHomePlaceholderMatch && !homeTLA) homeTLA = winnerCode;
+            if (isAwayPlaceholderMatch && !awayTLA) awayTLA = winnerCode;
+          });
         }
 
         const displayHome = homeTLA || "TBD";
