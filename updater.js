@@ -171,7 +171,7 @@ async function sync() {
     
     const finishedMatchWinnerTLAs = {};
     const teamNameToTlaMap = {};
-    const parentToChildLineageMap = {};
+    const dynamicKnockoutWinnersPool = new Set();
 
     dbTeams.forEach(team => {
       const teamTLA = getOfficialTLA(team.country);
@@ -181,7 +181,7 @@ async function sync() {
       };
     });
 
-    // PASS 1: Aggregate Finished and Live matches
+    // PASS 1: Aggregate Finished and Live matches, tracking active winners dynamically
     allMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla;
       const awayTLA = m.awayTeam?.tla;
@@ -216,7 +216,10 @@ async function sync() {
         }
 
         if (m.score.winner === 'HOME_TEAM') {
-          if (homeTLA) finishedMatchWinnerTLAs[m.id] = homeTLA;
+          if (homeTLA) {
+            finishedMatchWinnerTLAs[m.id] = homeTLA;
+            dynamicKnockoutWinnersPool.add(homeTLA);
+          }
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
@@ -227,7 +230,10 @@ async function sync() {
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
-          if (awayTLA) finishedMatchWinnerTLAs[m.id] = awayTLA;
+          if (awayTLA) {
+            finishedMatchWinnerTLAs[m.id] = awayTLA;
+            dynamicKnockoutWinnersPool.add(awayTLA);
+          }
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
@@ -254,53 +260,13 @@ async function sync() {
       }
     });
 
-    // PASS 2: Universal knockout lineage analyzer
-    allMatches.forEach(parentMatch => {
-      if (parentMatch.stage !== 'GROUP_STAGE') {
-        allMatches.forEach(childMatch => {
-          if (childMatch.status === 'TIMED' || childMatch.status === 'SCHEDULED') {
-            const matchesHomePlaceholder = childMatch.homeTeam?.id === parentMatch.id || 
-                                           (childMatch.homeTeam?.name && childMatch.homeTeam.name.includes(String(parentMatch.id)));
-            const matchesAwayPlaceholder = childMatch.awayTeam?.id === parentMatch.id || 
-                                           (childMatch.awayTeam?.name && childMatch.awayTeam.name.includes(String(parentMatch.id)));
-            
-            if (matchesHomePlaceholder) parentToChildLineageMap[`${childMatch.id}_home`] = parentMatch.id;
-            if (matchesAwayPlaceholder) parentToChildLineageMap[`${childMatch.id}_away`] = parentMatch.id;
-          }
-        });
-      }
-    });
-
-    // PASS 3: Process scheduled matches with universal multi-layered fallback matching
+    // PASS 2: Universal, stage-matching bracket assignment loop
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         let homeTLA = m.homeTeam?.tla;
         let awayTLA = m.awayTeam?.tla;
 
-        // LAYER 1: Database lineage lookup trace
-        const parentHomeId = parentToChildLineageMap[`${m.id}_home`] || m.homeTeam?.id;
-        if (parentHomeId && finishedMatchWinnerTLAs[parentHomeId]) homeTLA = finishedMatchWinnerTLAs[parentHomeId];
-
-        const parentAwayId = parentToChildLineageMap[`${m.id}_away`] || m.awayTeam?.id;
-        if (parentAwayId && finishedMatchWinnerTLAs[parentAwayId]) awayTLA = finishedMatchWinnerTLAs[parentAwayId];
-
-        // LAYER 2: Direct text inspection check against known finished parent slots
-        if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
-          const finishedParentMatches = allMatches.filter(pm => pm.status === 'FINISHED');
-          
-          finishedParentMatches.forEach(pm => {
-            const winnerCode = finishedMatchWinnerTLAs[pm.id];
-            if (!winnerCode) return;
-
-            const isHomeMatch = m.homeTeam?.name && (m.homeTeam.name.includes(String(pm.id)) || m.homeTeam.name.toUpperCase().includes(pm.homeTeam?.name?.toUpperCase()) || m.homeTeam.name.toUpperCase().includes(pm.awayTeam?.name?.toUpperCase()));
-            const isAwayMatch = m.awayTeam?.name && (m.awayTeam.name.includes(String(pm.id)) || m.awayTeam.name.toUpperCase().includes(pm.homeTeam?.name?.toUpperCase()) || m.awayTeam.name.toUpperCase().includes(pm.awayTeam?.name?.toUpperCase()));
-
-            if (isHomeMatch && !homeTLA) homeTLA = winnerCode;
-            if (isAwayMatch && !awayTLA) awayTLA = winnerCode;
-          });
-        }
-
-        // LAYER 3: Global TLA string-name table resolution fallback
+        // Try direct name lookup first from verified codes
         if (!homeTLA && m.homeTeam?.name) {
           const lookupKey = m.homeTeam.name.toUpperCase().trim();
           if (teamNameToTlaMap[lookupKey]) homeTLA = teamNameToTlaMap[lookupKey];
@@ -308,6 +274,47 @@ async function sync() {
         if (!awayTLA && m.awayTeam?.name) {
           const lookupKey = m.awayTeam.name.toUpperCase().trim();
           if (teamNameToTlaMap[lookupKey]) awayTLA = teamNameToTlaMap[lookupKey];
+        }
+
+        // --- GLOBAL STAGE AUTOMATION LAYER ---
+        // Loops through finished parent fixtures to map winners to corresponding next-stage rows dynamically
+        if (m.stage !== 'GROUP_STAGE') {
+          const finishedParentMatches = allMatches.filter(pm => pm.status === 'FINISHED');
+          
+          finishedParentMatches.forEach(pm => {
+            const winnerCode = finishedMatchWinnerTLAs[pm.id];
+            if (!winnerCode) return;
+
+            // Inspect placeholder strings for parent match numbers or team name fragments safely
+            const isHomePlaceholder = m.homeTeam?.name && (m.homeTeam.name.includes(String(pm.id)) || m.homeTeam.name.toUpperCase().includes(pm.homeTeam?.name?.toUpperCase()) || m.homeTeam.name.toUpperCase().includes(pm.awayTeam?.name?.toUpperCase()));
+            const isAwayPlaceholder = m.awayTeam?.name && (m.awayTeam.name.includes(String(pm.id)) || m.awayTeam.name.toUpperCase().includes(pm.homeTeam?.name?.toUpperCase()) || m.awayTeam.name.toUpperCase().includes(pm.awayTeam?.name?.toUpperCase()));
+
+            if (isHomePlaceholder && !homeTLA) homeTLA = winnerCode;
+            if (isAwayPlaceholder && !awayTLA) awayTLA = winnerCode;
+          });
+        }
+
+        // --- MULTI-ROUND FAILSAFE INTERACTION ---
+        // If the API leaves both teams completely null/blank during a data transition gap,
+        // we parse the placeholder text for numbers (e.g., Match 51) and pull from the winner index map
+        if (!homeTLA && m.homeTeam?.name) {
+          const digits = m.homeTeam.name.match(/\d+/);
+          if (digits && finishedMatchWinnerTLAs[digits[0]]) homeTLA = finishedMatchWinnerTLAs[digits[0]];
+        }
+        if (!awayTLA && m.awayTeam?.name) {
+          const digits = m.awayTeam.name.match(/\d+/);
+          if (digits && finishedMatchWinnerTLAs[digits[0]]) awayTLA = finishedMatchWinnerTLAs[digits[0]];
+        }
+
+        // If a specific team is known to have advanced but their opponent text is unrendered,
+        // we search the rest of the matches array to find the pairing match sharing the same stage and timestamp
+        if (homeTLA && !awayTLA) {
+          const matchingFixture = allMatches.find(match => match.stage === m.stage && match.utcDate === m.utcDate && match.id !== m.id);
+          if (matchingFixture) awayTLA = matchingFixture.homeTeam?.tla || matchingFixture.awayTeam?.tla || "TBD";
+        }
+        if (awayTLA && !homeTLA) {
+          const matchingFixture = allMatches.find(match => match.stage === m.stage && match.utcDate === m.utcDate && match.id !== m.id);
+          if (matchingFixture) homeTLA = matchingFixture.homeTeam?.tla || matchingFixture.awayTeam?.tla || "TBD";
         }
 
         const displayHome = homeTLA || "TBD";
@@ -335,25 +342,6 @@ async function sync() {
           if (!liveMatchMap[name] && !nextMatchMap[name]) {
             nextMatchMap[name] = formattedMatchTime.replace('{OPPONENT}', displayHome);
           }
-        }
-      }
-    });
-
-    // --- MASTER TOURNAMENT SCHEDULE GUARANTEE LAYER ---
-    // If the API hasn't linked the qualified teams to their official Round of 16 fixture slots yet,
-    // we use the official master tournament calendar to fill remaining unassigned vacancies.
-    const masterR16Schedule = {
-      'ARG': { opponent: 'EGY', time: '2026-07-08T02:00:00+10:00' }, // Argentina vs Egypt (AEST)
-      'COL': { opponent: 'SUI', time: '2026-07-08T06:00:00+10:00' }, // Colombia vs Switzerland (AEST)
-      'ESP': { opponent: 'POR', time: '2026-07-07T05:00:00+10:00' }  // Spain vs Portugal (AEST)
-    };
-
-    Object.keys(masterR16Schedule).forEach(tla => {
-      if (dynamicStatsMap.hasOwnProperty(tla)) {
-        const name = dynamicStatsMap[tla].name;
-        if (!liveMatchMap[name] && (!nextMatchMap[name] || nextMatchMap[name] === 'TBD')) {
-          const matchInfo = masterR16Schedule[tla];
-          nextMatchMap[name] = `vs ${matchInfo.opponent} • ${formatToAEST(matchInfo.time)}`;
         }
       }
     });
