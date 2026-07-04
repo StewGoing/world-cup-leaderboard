@@ -171,7 +171,6 @@ async function sync() {
     
     const finishedMatchWinnerTLAs = {};
     const teamNameToTlaMap = {};
-    const dynamicKnockoutWinnersPool = new Set();
 
     dbTeams.forEach(team => {
       const teamTLA = getOfficialTLA(team.country);
@@ -216,10 +215,7 @@ async function sync() {
         }
 
         if (m.score.winner === 'HOME_TEAM') {
-          if (homeTLA) {
-            finishedMatchWinnerTLAs[m.id] = homeTLA;
-            dynamicKnockoutWinnersPool.add(homeTLA);
-          }
+          if (homeTLA) finishedMatchWinnerTLAs[m.id] = homeTLA;
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
@@ -230,10 +226,7 @@ async function sync() {
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
-          if (awayTLA) {
-            finishedMatchWinnerTLAs[m.id] = awayTLA;
-            dynamicKnockoutWinnersPool.add(awayTLA);
-          }
+          if (awayTLA) finishedMatchWinnerTLAs[m.id] = awayTLA;
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
@@ -277,8 +270,6 @@ async function sync() {
         }
 
         // --- DYNAMIC TOURNAMENT RADIAL BRACKET AUTO-MATCH ENGINE ---
-        // If team codes remain unassigned because the API has not linked placeholder rows yet, 
-        // we sweep finished results to automatically place teams based on proximity scheduling indices.
         if (m.stage !== 'GROUP_STAGE') {
           const finishedParentMatches = allMatches.filter(pm => pm.status === 'FINISHED');
           
@@ -286,7 +277,6 @@ async function sync() {
             const winnerCode = finishedMatchWinnerTLAs[pm.id];
             if (!winnerCode) return;
 
-            // Direct content inspection checks
             const isHomePlaceholder = m.homeTeam?.name && (m.homeTeam.name.includes(String(pm.id)) || m.homeTeam.name.toUpperCase().includes(pm.homeTeam?.name?.toUpperCase()) || m.homeTeam.name.toUpperCase().includes(pm.awayTeam?.name?.toUpperCase()));
             const isAwayPlaceholder = m.awayTeam?.name && (m.awayTeam.name.includes(String(pm.id)) || m.awayTeam.name.toUpperCase().includes(pm.homeTeam?.name?.toUpperCase()) || m.awayTeam.name.toUpperCase().includes(pm.awayTeam?.name?.toUpperCase()));
 
@@ -305,9 +295,7 @@ async function sync() {
           if (digits && finishedMatchWinnerTLAs[digits[0]]) awayTLA = finishedMatchWinnerTLAs[digits[0]];
         }
 
-        // --- TIMELINE PARING RESOLVER ---
-        // Fallback catch to scan the exact stage timeline block. If a team code has advanced 
-        // but its partner column is blank on the server, we locate its immediate matching calendar grid slot.
+        // --- TIMELINE PAIRING RESOLVER ---
         if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
           const currentWinners = Object.values(finishedMatchWinnerTLAs);
           
@@ -335,7 +323,12 @@ async function sync() {
 
         if (msUntilKickoff > 0 && msUntilKickoff <= 172800000) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
-          badgeHTML = `<span data-badge="countdown" style="background-color: #262626; color: #a3a3a3; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
+          
+          // DYNAMIC STYLING RESTORED: Under 24 hours glows yellow, over 24 hours stays dark gray
+          const bg = hoursRemaining <= 24 ? "#ffc107" : "#262626";
+          const text = hoursRemaining <= 24 ? "#000000" : "#a3a3a3";
+          
+          badgeHTML = `<span data-badge="countdown" style="background-color: ${bg}; color: ${text}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
         const formattedMatchTime = `${badgeHTML}vs {OPPONENT} • ${formatToAEST(m.utcDate)}`;
@@ -351,6 +344,38 @@ async function sync() {
           if (!liveMatchMap[name] && !nextMatchMap[name]) {
             nextMatchMap[name] = formattedMatchTime.replace('{OPPONENT}', displayHome);
           }
+        }
+      }
+    });
+
+    // --- TWO-WAY MASTER TOURNAMENT SCHEDULE GUARANTEE LAYER ---
+    const masterR16Schedule = {
+      'ARG': { opponent: 'EGY', time: '2026-07-08T02:00:00+10:00' },
+      'EGY': { opponent: 'ARG', time: '2026-07-08T02:00:00+10:00' },
+      'COL': { opponent: 'SUI', time: '2026-07-08T06:00:00+10:00' },
+      'SUI': { opponent: 'COL', time: '2026-07-08T06:00:00+10:00' },
+      'ESP': { opponent: 'POR', time: '2026-07-07T05:00:00+10:00' },
+      'POR': { opponent: 'ESP', time: '2026-07-07T05:00:00+10:00' }
+    };
+
+    Object.keys(masterR16Schedule).forEach(tla => {
+      if (dynamicStatsMap.hasOwnProperty(tla)) {
+        const name = dynamicStatsMap[tla].name;
+        if (!liveMatchMap[name] && (!nextMatchMap[name] || nextMatchMap[name] === 'TBD')) {
+          const matchInfo = masterR16Schedule[tla];
+          
+          const kickoffMs = new Date(matchInfo.time).getTime();
+          const msUntilKickoff = kickoffMs - currentSyncTime.getTime();
+          let badgeHTML = "";
+
+          if (msUntilKickoff > 0 && msUntilKickoff <= 172800000) {
+            const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
+            const bg = hoursRemaining <= 24 ? "#ffc107" : "#262626";
+            const text = hoursRemaining <= 24 ? "#000000" : "#a3a3a3";
+            badgeHTML = `<span data-badge="countdown" style="background-color: ${bg}; color: ${text}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
+          }
+
+          nextMatchMap[name] = `${badgeHTML}vs ${matchInfo.opponent} • ${formatToAEST(matchInfo.time)}`;
         }
       }
     });
