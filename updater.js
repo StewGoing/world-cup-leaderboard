@@ -169,8 +169,9 @@ async function sync() {
     const matchWinnersSet = new Set();
     const dynamicStatsMap = {};
     
-    // Track every team TLA that won a knockout match in the current phase
-    const dynamicKnockoutWinners = new Set();
+    // Maps both match sequence numbers AND database team IDs directly to verified winner codes
+    const matchNumberToWinnerTlaMap = {};
+    const teamIdToVerifiedWinnerTlaMap = {};
 
     dbTeams.forEach(team => {
       const teamTLA = getOfficialTLA(team.country);
@@ -180,7 +181,7 @@ async function sync() {
       };
     });
 
-    // PASS 1: Aggregate Finished and Live matches
+    // PASS 1: Aggregate Finished and Live matches, indexing verified winners by team ID and match number
     allMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla;
       const awayTLA = m.awayTeam?.tla;
@@ -211,8 +212,13 @@ async function sync() {
           lastFinishedMatchMap[awayTLA] = m;
         }
 
+        const tournamentMatchNum = String(m.matchNumber || m.id);
+
         if (m.score.winner === 'HOME_TEAM') {
-          if (homeTLA) dynamicKnockoutWinners.add(homeTLA);
+          if (homeTLA) {
+            matchNumberToWinnerTlaMap[tournamentMatchNum] = homeTLA;
+            if (m.homeTeam.id) teamIdToVerifiedWinnerTlaMap[m.homeTeam.id] = homeTLA;
+          }
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
@@ -223,7 +229,10 @@ async function sync() {
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
-          if (awayTLA) dynamicKnockoutWinners.add(awayTLA);
+          if (awayTLA) {
+            matchNumberToWinnerTlaMap[tournamentMatchNum] = awayTLA;
+            if (m.awayTeam.id) teamIdToVerifiedWinnerTlaMap[m.awayTeam.id] = awayTLA;
+          }
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
@@ -250,17 +259,29 @@ async function sync() {
       }
     });
 
-    // PASS 2: Universal stage-based schedule resolver loop
+    // PASS 2: Universal stage-independent schedule resolver loop
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         let homeTLA = m.homeTeam?.tla;
         let awayTLA = m.awayTeam?.tla;
 
-        // UNIVERSAL FALLBACK DETECTOR: If the API sends down empty/null teams for the next round,
-        // we map verified advancing pool candidates directly to unassigned slots by stage comparison.
-        if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
-          if (!homeTLA && dynamicKnockoutWinners.has('ESP') && awayTLA !== 'ESP') homeTLA = 'ESP';
-          if (!awayTLA && dynamicKnockoutWinners.has('POR') && homeTLA !== 'POR') awayTLA = 'POR';
+        // 1. DYNAMIC TEAM-ID MAPPING: Check if the unplayed bracket slot's structural team ID 
+        // matches a team code we recorded as a winner in Pass 1.
+        if (!homeTLA && m.homeTeam?.id && teamIdToVerifiedWinnerTlaMap[m.homeTeam.id]) {
+          homeTLA = teamIdToVerifiedWinnerTlaMap[m.homeTeam.id];
+        }
+        if (!awayTLA && m.awayTeam?.id && teamIdToVerifiedWinnerTlaMap[m.awayTeam.id]) {
+          awayTLA = teamIdToVerifiedWinnerTlaMap[m.awayTeam.id];
+        }
+
+        // 2. TEXT-STRING PLACEHOLDER LOOKUP fallback: Scans text strings for digit sequence matching
+        if (!homeTLA && m.homeTeam?.name) {
+          const digits = m.homeTeam.name.match(/\d+/);
+          if (digits && matchNumberToWinnerTlaMap[digits[0]]) homeTLA = matchNumberToWinnerTlaMap[digits[0]];
+        }
+        if (!awayTLA && m.awayTeam?.name) {
+          const digits = m.awayTeam.name.match(/\d+/);
+          if (digits && matchNumberToWinnerTlaMap[digits[0]]) awayTLA = matchNumberToWinnerTlaMap[digits[0]];
         }
 
         const displayHome = homeTLA || "TBD";
@@ -333,7 +354,7 @@ async function sync() {
       if (lastGame) {
         dbMatchTime = lastGame.utcDate;
         const isHome = lastGame.homeTeam.tla === teamTLA;
-        const { homeScore, awayScore = 0 } = getCleanMatchScore(lastGame);
+        const { homeScore, awayScore } = getCleanMatchScore(lastGame);
         
         if (lastGame.score.winner === 'HOME_TEAM') {
           dbMatchResult = isHome ? 'WIN' : 'LOSS';
