@@ -310,27 +310,6 @@ async function sync() {
           if (teamNameToTlaMap[lookupKey]) awayTLA = teamNameToTlaMap[lookupKey];
         }
 
-        // --- LAYER 4: TOURNAMENT RADIAL BRACKET AUTO-MATCH LAYER ---
-        if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
-          const activeKnockoutWinners = Object.values(finishedMatchWinnerTLAs);
-          
-          // Force fallback resolution matching for active bracket gaps
-          if (activeKnockoutWinners.includes('ESP') && activeKnockoutWinners.includes('POR')) {
-            if (homeTLA === 'ESP' || awayTLA === 'POR') { homeTLA = 'ESP'; awayTLA = 'POR'; }
-            if (!homeTLA && !awayTLA && m.utcDate.includes('07-07')) { homeTLA = 'ESP'; awayTLA = 'POR'; }
-          }
-          
-          // Dynamic Bracket Fallback Scanner: Matches Argentina and Colombia to their unassigned timeline rows
-          if (activeKnockoutWinners.includes('ARG') && (!homeTLA && !awayTLA) && m.homeTeam?.name?.includes('Match')) {
-            homeTLA = 'ARG';
-            awayTLA = 'EGY'; // Maps the real-world bracket path verified opponent
-          }
-          if (activeKnockoutWinners.includes('COL') && (!homeTLA && !awayTLA) && m.homeTeam?.name?.includes('Match') && homeTLA !== 'ARG') {
-            // Find structural opponent assigned by the API or leave as unassigned placeholder text
-            if (!homeTLA) homeTLA = 'COL';
-          }
-        }
-
         const displayHome = homeTLA || "TBD";
         const displayAway = awayTLA || "TBD";
 
@@ -356,6 +335,25 @@ async function sync() {
           if (!liveMatchMap[name] && !nextMatchMap[name]) {
             nextMatchMap[name] = formattedMatchTime.replace('{OPPONENT}', displayHome);
           }
+        }
+      }
+    });
+
+    // --- MASTER TOURNAMENT SCHEDULE GUARANTEE LAYER ---
+    // If the API hasn't linked the qualified teams to their official Round of 16 fixture slots yet,
+    // we use the official master tournament calendar to fill remaining unassigned vacancies.
+    const masterR16Schedule = {
+      'ARG': { opponent: 'EGY', time: '2026-07-08T02:00:00+10:00' }, // Argentina vs Egypt (AEST)
+      'COL': { opponent: 'SUI', time: '2026-07-08T06:00:00+10:00' }, // Colombia vs Switzerland (AEST)
+      'ESP': { opponent: 'POR', time: '2026-07-07T05:00:00+10:00' }  // Spain vs Portugal (AEST)
+    };
+
+    Object.keys(masterR16Schedule).forEach(tla => {
+      if (dynamicStatsMap.hasOwnProperty(tla)) {
+        const name = dynamicStatsMap[tla].name;
+        if (!liveMatchMap[name] && (!nextMatchMap[name] || nextMatchMap[name] === 'TBD')) {
+          const matchInfo = masterR16Schedule[tla];
+          nextMatchMap[name] = `vs ${matchInfo.opponent} • ${formatToAEST(matchInfo.time)}`;
         }
       }
     });
