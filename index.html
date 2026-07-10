@@ -1,202 +1,401 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>World Cup Draft Decider</title>
-    
-    <!-- Tailwind CSS CDN for global layout structure -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    
-    <style>
-        body {
-            background-color: #0a0a0a;
-            color: #ededed;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World Cup Fantasy Draft Decider</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes marquee {
+      0% { transform: translate3d(0, 0, 0); }
+      100% { transform: translate3d(-50%, 0, 0); }
+    }
+    .ticker-wrap {
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .ticker-content {
+      display: inline-block;
+      padding-left: 20%;
+      animation: marquee 35s linear infinite;
+    }
+    .ticker-content:hover {
+      animation-play-state: paused;
+    }
 
-        /* --- THE LEGIBILITY FIX --- */
-        /* Brightened row rule for knocked-out selections to ensure mobile legibility */
-        .row-eliminated {
-            opacity: 0.48 !important; 
-            filter: grayscale(25%);
-            transition: opacity 0.2s ease;
-        }
-
-        .badge-base {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 4px 10px;
-            border-radius: 9999px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        span[data-badge="countdown"] {
-            display: inline-block;
-            vertical-align: middle;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: bold;
-            margin-right: 6px;
-        }
-    </style>
+    /* --- THE LEGIBILITY FIX --- */
+    /* Brightened row rule for true knocked-out selections to ensure absolute mobile visibility */
+    .row-eliminated {
+      opacity: 0.48 !important; 
+      filter: grayscale(25%);
+      transition: opacity 0.2s ease;
+    }
+  </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="bg-neutral-950 text-neutral-100 min-h-screen font-sans p-3 md:p-8">
 
-    <main class="max-w-6xl mx-auto">
-        <header class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-neutral-800 pb-4">
-            <div>
-                <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight text-amber-500">WORLD CUP DRAFT DECIDER</h1>
-                <p class="text-xs text-neutral-400 mt-1 uppercase tracking-wider">Last Year's Standings. This Year's Destiny.</p>
-            </div>
-            <div class="text-xs text-neutral-500 mt-3 sm:mt-0 bg-neutral-900/50 px-3 py-1.5 rounded-md border border-neutral-800/60 self-start sm:self-center">
-                Synced: <span id="sync-timestamp" class="text-neutral-300 font-medium">Loading...</span>
-            </div>
-        </header>
+  <div class="max-w-5xl mx-auto mb-4 bg-neutral-900/80 border border-neutral-800/60 rounded-lg overflow-hidden h-7 flex items-center shadow-lg">
+    <div class="bg-amber-500 text-neutral-950 text-[9px] font-black uppercase tracking-widest px-3 h-full flex items-center z-10 shrink-0 select-none shadow-md">News</div>
+    <div class="ticker-wrap w-full font-mono text-[11px] text-neutral-300 font-semibold relative">
+      <div id="news-ticker" class="ticker-content">Loading live FIFA tournament feeds...</div>
+    </div>
+  </div>
 
-        <div class="overflow-x-auto bg-neutral-900/40 rounded-xl border border-neutral-800/80 shadow-2xl backdrop-blur-md">
-            <table class="w-full text-left border-collapse min-w-[700px]">
-                <thead>
-                    <tr class="border-b border-neutral-800 text-neutral-400 text-xs uppercase tracking-wider bg-neutral-950/40">
-                        <th class="py-4 px-4 text-center w-12">Pick</th>
-                        <th class="py-4 px-4">Manager</th>
-                        <th class="py-4 px-4">Country</th>
-                        <th class="py-4 px-4 text-center">Stage</th>
-                        <th class="py-4 px-4 text-center">W-D-L</th>
-                        <th class="py-4 px-4 text-center">GD</th>
-                        <th class="py-4 px-4 text-center">Odds</th>
-                        <th class="py-4 px-4 max-w-[280px]">Next Up (AEST)</th>
-                    </tr>
-                </thead>
-                <tbody id="leaderboard-rows" class="divide-y divide-neutral-800/50 text-sm">
-                    <!-- JavaScript dynamically populates rows here -->
-                </tbody>
-            </table>
+  <header class="max-w-5xl mx-auto border-b border-neutral-800 pb-4 mb-6 flex flex-col md:flex-row md:justify-between items-center md:items-end gap-3 text-center md:text-left">
+    <div>
+      <h1 class="text-2xl md:text-3xl font-black uppercase tracking-wider text-amber-500 inline-block align-middle">World Cup Draft Decider</h1>
+      <p class="text-neutral-400 text-[10px] md:text-xs font-bold tracking-widest uppercase mt-0.5 block">Last Year's Standings. This Year's Destiny.</p>
+    </div>
+    <div id="sync-status" class="hidden text-neutral-500 font-mono text-[10px] md:text-[11px] bg-neutral-900 border border-neutral-800/80 rounded-full px-3 py-1.5 self-center md:self-auto shadow-inner">
+      Synced: <span id="last-ago" class="text-neutral-300 font-bold">...</span> • 
+      Next: <span id="next-countdown" class="text-amber-500 font-bold">...</span>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto">
+    <div id="loading" class="text-center py-12 text-amber-500 font-bold text-xs uppercase tracking-widest animate-pulse">
+      Connecting to Cloud Standings...
+    </div>
+
+    <div id="board-wrapper" class="hidden space-y-6">
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl">
+        
+        <div class="hidden md:block overflow-x-auto">
+          <table class="w-full text-left border-collapse table-fixed max-w-5xl">
+            <thead>
+              <tr class="bg-neutral-950 text-[10px] uppercase font-black tracking-widest text-neutral-500 border-b border-neutral-800">
+                <th class="py-4 px-4 text-center w-16">Pick</th>
+                <th class="py-4 px-4 w-52">Manager</th>
+                <th class="py-4 px-4 w-36">Country</th>
+                <th class="py-4 px-4 text-center w-32">Stage</th>
+                <th class="py-4 px-4 text-center w-20">W-D-L</th>
+                <th class="py-4 px-4 text-center w-24">GD</th>
+                <th class="py-4 px-4 text-center w-14">Odds</th>
+                <th class="py-4 pl-4 pr-16 text-left w-88">Next up (AEST)</th>
+              </tr>
+            </thead>
+            <tbody id="desktop-rows" class="divide-y divide-neutral-800/40"></tbody>
+          </table>
         </div>
+
+        <div id="mobile-list" class="block md:hidden divide-y divide-neutral-800/60 bg-neutral-900"></div>
+      </div>
+
+      <div class="bg-neutral-900/60 border border-neutral-800 rounded-xl p-4 md:p-6 shadow-xl space-y-5">
+        <div>
+          <h3 class="text-xs uppercase font-black text-amber-500 tracking-widest border-b border-neutral-800 pb-2 mb-3">Tournament Rules & Tiebreaker Hierarchy</h3>
+          <p class="text-neutral-400 text-xs leading-relaxed mb-4">Draft order is bound to your assigned nation's live performance. Ranks calculate dynamically via scheduled loops.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-[11px] font-mono text-neutral-400">
+            <div class="bg-neutral-950/40 p-3 border border-neutral-800/60 rounded-lg"><span class="block text-amber-400 font-bold uppercase text-[10px] mb-1">1. Progress Stage</span>Teams in further knockout brackets completely outrank previously eliminated squads.</div>
+            <div class="bg-neutral-950/40 p-3 border border-neutral-800/60 rounded-lg"><span class="block text-amber-400 font-bold uppercase text-[10px] mb-1">2. Match Wins</span>If teams drop out in the same global stage, total absolute match wins decide the position.</div>
+            <div class="bg-neutral-950/40 p-3 border border-neutral-800/60 rounded-lg"><span class="block text-amber-400 font-bold uppercase text-[10px] mb-1">3. Goal Difference</span>If wins are matched, priorities fall directly onto the total tournament Goal Difference (GD).</div>
+            <div class="bg-neutral-950/40 p-3 border border-neutral-800/60 rounded-lg"><span class="block text-amber-400 font-bold uppercase text-[10px] mb-1">4. Entry Odds</span>Absolute tiebreaker: The country carrying lower baseline pre-kickoff betting values secures the pick.</div>
+          </div>
+        </div>
+
+        <div class="border-t border-neutral-800/80 pt-4">
+          <h4 class="text-[10px] uppercase font-bold text-neutral-400 tracking-widest mb-2">Column Key Definitions</h4>
+          <div class="flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-mono text-neutral-500">
+            <div><span class="text-neutral-300 font-bold">W-D-L:</span> Wins - Draws - Losses</div>
+            <div><span class="text-neutral-300 font-bold">GD:</span> Goal Difference</div>
+            <div><span class="text-neutral-300 font-bold">Odds:</span> Pre-tournament baseline bookmaker value</div>
+          </div>
+        </div>
+      </div>
     </main>
 
-    <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+  <script>
+    const SUPABASE_URL = "https://grcdedmxdfdjgaextaru.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_qAPRKnLO0JUSBG1iwYm0Pw_Ehfr9M8Z"; 
 
-        const SUPABASE_URL = 'YOUR_SUPABASE_PROJECT_URL'; 
-        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; 
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // --- SIMPLIFIED SHORT STAGE BADGES LABELS ---
+    const STAGES = { 
+      1: "Group", 
+      3: "R32", 
+      4: "R16", 
+      5: "Quarters", 
+      6: "Semis", 
+      7: "4th Place", 
+      8: "3rd Place", 
+      9: "2nd Place", 
+      10: "Champion",
+      11: "Finals"
+    };
 
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // ADAPTIVE COUNTDOWN CLOCK ENGINE: Accounts for dynamic 15m vs 60m schedules
+    function calculateTimeDelta(lastUpdatedString, isLiveWindowActive) {
+      const lastUpdate = new Date(lastUpdatedString);
+      const now = new Date();
+      const diffMins = Math.floor((now - lastUpdate) / 1000 / 60);
+      const diffHours = Math.floor(diffMins / 60);
 
-        function getStageBadge(stageWeight, isEliminated) {
-            let label = 'GROUPS';
-            let styles = 'bg-neutral-800 text-neutral-300 border border-neutral-700/50';
+      let lastText = diffMins < 1 ? "just now" : diffMins < 60 ? `${diffMins}m ago` : `${diffHours}h ago`;
+      
+      const activeSyncIntervalMs = isLiveWindowActive ? (15 * 60 * 1000) : (60 * 60 * 1000);
+      const timeRemainingMs = (lastUpdate.getTime() + activeSyncIntervalMs) - now.getTime();
 
-            switch(Number(stageWeight)) {
-                case 3:
-                    label = 'R32';
-                    styles = 'bg-neutral-950 text-neutral-500 border border-neutral-900';
-                    break;
-                case 4:
-                    label = 'R16';
-                    styles = 'bg-neutral-950 text-neutral-400 border border-neutral-900';
-                    break;
-                case 5:
-                    label = 'QUARTERS 🏁';
-                    styles = isEliminated 
-                        ? 'bg-neutral-900 text-neutral-400 border border-neutral-800' 
-                        : 'bg-amber-950/40 text-amber-400 border border-amber-900/60';
-                    break;
-                case 6:
-                    if (isEliminated) {
-                        label = '3RD PLAYOFF 🏁';
-                        styles = 'bg-orange-950/40 text-orange-400 border border-orange-900/60';
-                    } else {
-                        label = 'SEMIS 🏁';
-                        styles = 'bg-purple-950/50 text-purple-300 border border-purple-800/60';
-                    }
-                    break;
-                case 7:
-                    label = '4TH PLACE 🏆';
-                    styles = 'bg-stone-900 text-stone-400 border border-stone-800';
-                    break;
-                case 8:
-                    label = '3RD PLACE 🏆';
-                    styles = 'bg-amber-900/30 text-amber-600 border border-amber-900/40';
-                    break;
-                case 9:
-                    label = '2ND PLACE 🥈';
-                    styles = 'bg-slate-800/60 text-slate-300 border border-slate-700/50';
-                    break;
-                case 10:
-                    label = 'CHAMPIONS 🏆';
-                    styles = 'bg-yellow-500 text-neutral-950 border border-yellow-400 shadow-lg shadow-yellow-500/10 animate-pulse';
-                    break;
-                case 11:
-                    label = 'FINALS 🏁';
-                    styles = 'bg-rose-950/40 text-rose-400 border border-rose-900/60 font-black';
-                    break;
-                default:
-                    if (isEliminated) {
-                        label = 'ELIMINATED';
-                        styles = 'bg-neutral-950 text-neutral-600 border border-neutral-900';
-                    }
-            }
+      let nextText = "Imminent";
+      if (timeRemainingMs > 0) {
+        nextText = `in ~${Math.floor(timeRemainingMs / 1000 / 60)}m`;
+      }
+      
+      document.getElementById('last-ago').innerText = lastText;
+      document.getElementById('next-countdown').innerText = nextText;
+      document.getElementById('sync-status').classList.remove('hidden');
+    }
 
-            return `<span class="badge-base ${styles}">${label}</span>`;
+    async function logAnonymousPageView() {
+      try {
+        if (!supabaseClient) return;
+        const fingerprint = btoa(navigator.userAgent + navigator.hardwareConcurrency + screen.width);
+        const isMobileDevice = window.innerWidth < 768 ? 'Mobile' : 'Desktop';
+        
+        await supabaseClient.from('site_analytics').insert([
+          { visitor_hash: fingerprint, device_type: isMobileDevice }
+        ]);
+      } catch (err) {
+        console.error("Traffic log telemetry safely bypassed:", err);
+      }
+    }
+
+    async function loadLeaderboard() {
+      try {
+        const { data, error } = await supabaseClient.from('world_cup_leaderboard').select('*');
+        if (error) {
+          document.getElementById('loading').innerText = "Database retrieval error.";
+          return;
         }
 
-        async function renderLeaderboard() {
-            const tableBody = document.getElementById('leaderboard-rows');
+        const globalLiveStateFlag = data.length > 0 ? data[0].notes_bool === true : false;
+        if (data.length > 0 && data[0].updated_at) {
+          calculateTimeDelta(data[0].updated_at, globalLiveStateFlag);
+        }
+
+        if (data.length > 0 && data[0].notes && data[0].notes.trim() !== "") {
+          const rawHeadline = data[0].notes;
+          document.getElementById('news-ticker').innerText = `${rawHeadline}  •  ${rawHeadline}`;
+        } else {
+          const fallbackNews = "⏳ STANDBY ACTIVE: Fetching latest FIFA World Cup tournament feeds directly from wire rooms...";
+          document.getElementById('news-ticker').innerText = `${fallbackNews}  •  ${fallbackNews}`;
+        }
+
+        const sorted = data.sort((a, b) => {
+          if (b.stage !== a.stage) return b.stage - a.stage;
+          if (b.wins !== a.wins) return b.wins - a.wins;
+          if (b.gd !== a.gd) return b.gd - a.gd;
+          return a.odds - b.odds;
+        });
+
+        const desktopBody = document.getElementById('desktop-rows');
+        const mobileContainer = document.getElementById('mobile-list');
+        desktopBody.innerHTML = ''; mobileContainer.innerHTML = '';
+
+        sorted.forEach((team, index) => {
+          const pick = index + 1;
+          const isEliminated = team.eliminated;
+          const stageNum = Number(team.stage);
+          const isLive = team.notes_bool === true;
+          const matchString = team.next_match || 'TBD';
+          
+          const winsCount = team.wins || 0;
+          let drawsCount = 0;
+          let lossesCount = 0;
+
+          if (team.games_played !== null && team.games_played !== undefined) {
+            const gamesPlayedStr = String(team.games_played);
+            if (gamesPlayedStr.indexOf('/') !== -1) {
+              const parts = gamesPlayedStr.split('/');
+              drawsCount = parseInt(parts[0]) || 0;
+              lossesCount = parseInt(parts[1]) || 0;
+            }
+          }
+          
+          const goalsFor = team.gf || 0;
+          const goalsAgainst = team.ga || 0;
+          
+          let pickColor = 'text-amber-500';
+          if (pick === 1) pickColor = 'text-emerald-400 font-black';
+          if (pick === 12) pickColor = 'text-rose-500 font-black';
+
+          // Choose stage label text dynamically based on 3rd place playoff tracking
+          let activeLabelText = STAGES[team.stage] || "Group";
+          if (stageNum === 6 && isEliminated) {
+            activeLabelText = "3rd Playoff"; 
+          }
+
+          let stageLabelColor = 'text-amber-400 border-amber-500/20';
+          if (team.stage === 10) stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black';
+          if (team.stage === 9) stageLabelColor = 'text-zinc-300 border-zinc-500/20 bg-zinc-900/40';
+          if (team.stage === 8) stageLabelColor = 'text-amber-500/90 border-amber-500/30 bg-amber-950/20';
+          if (team.stage === 7) stageLabelColor = 'text-stone-400 border-stone-500/20 bg-stone-900/30';
+          if (team.stage === 6 && isEliminated) stageLabelColor = 'text-orange-400 border-orange-500/30 bg-orange-950/20';
+          if (team.stage === 11 || (team.stage === 6 && !isEliminated)) stageLabelColor = 'text-purple-400 border-purple-500/30 bg-purple-950/20 animate-pulse';
+
+          let showFTBadge = false;
+          const hasActiveLiveOrCountdown = matchString.includes('data-badge="live"') || matchString.includes('data-badge="countdown"');
+          
+          if (!hasActiveLiveOrCountdown && team.last_match_time) {
+            const lastWhistleTime = new Date(team.last_match_time);
+            const now = new Date();
+            const hoursSinceMatch = (now - lastWhistleTime) / 1000 / 60 / 60;
             
-            let { data: teams, error } = await supabase
-                .from('world_cup_leaderboard')
-                .select('*');
-
-            if (error) {
-                console.error("Supabase Error:", error.message);
-                return;
+            if (hoursSinceMatch >= 0 && hoursSinceMatch <= 24) {
+              showFTBadge = true;
             }
+          }
+          
+          const ftBadgeHTML = showFTBadge 
+            ? `<span style="background-color: #262626; color: #a3a3a3; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⏱️ FT</span>` 
+            : '';
 
-            teams.sort((a, b) => {
-                if (b.stage !== a.stage) return b.stage - a.stage;
-                if (b.wins !== a.wins) return b.wins - a.wins;
-                if (b.gd !== a.gd) return b.gd - a.gd;
-                return a.odds - b.odds;
-            });
+          let winDigitStyle = "text-neutral-200";
+          let drawDigitStyle = "text-neutral-500/90 font-medium";
+          let lossDigitStyle = "text-neutral-500/90 font-medium";
+          let recentGDStyle = "text-neutral-300";
 
-            tableBody.innerHTML = '';
-
-            if (teams.length > 0 && teams[0].updated_at) {
-                document.getElementById('sync-timestamp').innerText = new Date(teams[0].updated_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+          if (showFTBadge && team.last_match_result) {
+            const outcome = team.last_match_result.toUpperCase();
+            
+            if (outcome === 'WIN') {
+              winDigitStyle = "text-emerald-400 font-extrabold drop-shadow-[0_0_6px_rgba(52,211,153,0.4)]";
+              recentGDStyle = "text-emerald-400 font-black";
+            } else if (outcome === 'DRAW') {
+              drawDigitStyle = "text-amber-400 font-extrabold drop-shadow-[0_0_6px_rgba(251,191,36,0.35)]";
+              recentGDStyle = "text-amber-400 font-bold";
+            } else if (outcome === 'LOSS') {
+              lossDigitStyle = "text-rose-400 font-extrabold drop-shadow-[0_0_6px_rgba(244,63,94,0.35)]";
+              recentGDStyle = "text-rose-500 font-black";
             }
+          }
 
-            teams.forEach((team, index) => {
-                const isEliminated = team.eliminated === true;
-                const stageNum = Number(team.stage);
+          // --- THE VISUAL ROW SHADING TRACKING FIX ---
+          // Prevent fading for active remaining playoff teams (Stage 6 / Semis and above stay vibrant)
+          const appliesVisualRowFade = isEliminated && stageNum <= 5;
 
-                // --- THE VISUAL FIX ---
-                // Only fade rows if the team is completely out of games (Stage 5 / Quarters or lower)
-                const eliminationRowClass = (isEliminated && stageNum <= 5) ? 'row-eliminated' : '';
-                const cleanGD = team.gd > 0 ? `+${team.gd}` : team.gd;
+          let desktopRowClass = `transition hover:bg-neutral-800/15 ${appliesVisualRowFade ? 'row-eliminated bg-neutral-950/40' : ''}`;
+          if (isLive && matchString.includes('data-badge="live"')) {
+            desktopRowClass = "bg-red-950/15 border-l-4 border-red-500 transition hover:bg-red-950/25 animate-[pulse_3s_infinite]";
+          }
 
-                const tableRowHtml = `
-                    <tr class="${eliminationRowClass} hover:bg-neutral-800/20 transition-colors duration-150">
-                        <td class="py-3.5 px-4 text-center font-bold text-xs text-neutral-500">#${index + 1}</td>
-                        <td class="py-3.5 px-4 font-semibold tracking-wide text-neutral-200">${team.manager.toUpperCase()}</td>
-                        <td class="py-3.5 px-4 text-neutral-300 font-medium">${team.country}</td>
-                        <td class="py-3.5 px-4 text-center">${getStageBadge(team.stage, isEliminated)}</td>
-                        <td class="py-3.5 px-4 text-center font-mono text-xs text-neutral-400">${team.wins}-${team.games_played}</td>
-                        <td class="py-3.5 px-4 text-center font-bold font-mono text-xs ${team.gd > 0 ? 'text-emerald-500' : team.gd < 0 ? 'text-rose-500' : 'text-neutral-500'}">${cleanGD}</td>
-                        <td class="py-3.5 px-4 text-center font-medium font-mono text-neutral-400">${Number(team.odds).toFixed(1)}</td>
-                        <td class="py-3.5 px-4 text-xs font-medium text-amber-500/90 max-w-[280px] truncate">${team.next_match || 'TBD'}</td>
-                    </tr>
-                `;
-                tableBody.insertAdjacentHTML('beforeend', tableRowHtml);
-            });
-        }
+          let mobileCardClass = `pt-3 pb-2 px-3.5 flex flex-col gap-2 transition duration-200 ${appliesVisualRowFade ? 'row-eliminated bg-neutral-950/40' : 'bg-neutral-900'}`;
+          if (isLive && matchString.includes('data-badge="live"')) {
+            mobileCardClass = "pt-3 pb-2 px-3.5 flex flex-col gap-2 bg-red-950/20 border-l-4 border-red-500 animate-[pulse_3s_infinite]";
+          }
 
-        document.addEventListener('DOMContentLoaded', renderLeaderboard());
-    </script>
+          // --- DESKTOP RENDER ---
+          const dRow = document.createElement('tr');
+          dRow.className = desktopRowClass;
+          dRow.innerHTML = `
+            <td class="py-4 px-4 text-center font-black text-sm md:text-base ${pickColor}">#${pick}</td>
+            <td class="py-4 px-4 font-extrabold text-neutral-100 tracking-wide text-sm truncate">${team.manager}</td>
+            <td class="py-4 px-4 text-neutral-300 text-sm truncate">
+              <span class="text-xl mr-2 inline-block align-middle">${team.flag}</span>
+              <span class="align-middle uppercase tracking-wider text-xs font-bold">${team.country}</span>
+            </td>
+            <td class="py-4 px-4 text-center whitespace-nowrap">
+              <span class="text-[10px] px-2.5 py-1 rounded-full font-black uppercase bg-neutral-950 border ${appliesVisualRowFade ? 'text-neutral-500 border-neutral-800' : stageLabelColor} inline-block align-middle">
+                ${activeLabelText} ${appliesVisualRowFade ? '❌' : '🏁'}
+              </span>
+            </td>
+            
+            <td class="py-4 px-4 text-center font-mono text-sm font-bold whitespace-nowrap tracking-wide">
+              <span class="${winDigitStyle}">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${drawDigitStyle}">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${lossDigitStyle}">${lossesCount}</span>
+            </td>
+            
+            <td class="py-4 px-4 font-mono">
+              <div class="flex items-center justify-center gap-2">
+                <span class="font-bold text-sm w-5 text-right ${recentGDStyle}">
+                  ${team.gd > 0 ? '+' + team.gd : team.gd}
+                </span>
+                <div class="flex flex-col text-left text-[9px] font-sans font-bold text-neutral-500/90 leading-tight border-l border-neutral-800/80 pl-2 shrink-0 select-none">
+                  <span>F: ${goalsFor}</span>
+                  <span>A: ${goalsAgainst}</span>
+                </div>
+              </div>
+            </td>
+            
+            <td class="py-4 px-4 text-center font-mono text-neutral-300 text-sm font-bold tracking-tight">${Number(team.odds).toFixed(1)}</td>
+            <td class="py-4 pl-4 pr-16 text-left font-mono text-[11px] text-amber-500/90 font-medium whitespace-nowrap">
+              ${ftBadgeHTML}${matchString}
+            </td>
+          `;
+          desktopBody.appendChild(dRow);
+
+          // --- MOBILE BADGE PLACEMENT PROCESSING ---
+          let badgeHTMLSnippet = "";
+          let cleanMatchString = matchString;
+
+          if (matchString.includes('<span')) {
+            const closingSpanIndex = matchString.indexOf('</span>') + 7;
+            badgeHTMLSnippet = matchString.substring(0, closingSpanIndex);
+            cleanMatchString = matchString.substring(closingSpanIndex).trim();
+          }
+          
+          if (badgeHTMLSnippet !== "") {
+            badgeHTMLSnippet = badgeHTMLSnippet.replace('font-size: 11px;', 'font-size: 10px;');
+          }
+
+          // --- MOBILE RENDER ---
+          const mCard = document.createElement('div');
+          mCard.className = mobileCardClass;
+          mCard.innerHTML = `
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0 flex-1 flex-nowrap">
+                <div class="text-sm font-black w-8 h-8 rounded-lg bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-inner shrink-0 ${pickColor}">#${pick}</div>
+                <div class="min-w-0 flex-1">
+                  <p class="font-black text-white tracking-wide text-sm truncate uppercase leading-tight ${appliesVisualRowFade ? 'text-neutral-400 font-bold' : ''}">${team.manager}</p>
+                  <div class="text-neutral-400 text-xs flex items-center gap-1.5 mt-0.5 font-medium flex-nowrap min-w-0">
+                    <span class="shrink-0 text-base">${team.flag}</span>
+                    <span class="truncate tracking-wider text-xs font-bold uppercase text-neutral-200 min-w-0">${team.country}</span>
+                    <span class="text-[9px] px-1.5 py-0.5 bg-neutral-950 rounded font-black uppercase shrink-0 ${appliesVisualRowFade ? 'text-neutral-500' : stageLabelColor.split(' ')[0]}">${activeLabelText}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="flex items-center gap-2 font-mono shrink-0 select-none text-center">
+                <div class="flex flex-col items-center w-11">
+                  <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">W-D-L</span>
+                  <span class="text-sm font-bold mt-0.5 whitespace-nowrap tracking-tighter">
+                    <span class="${winDigitStyle}">${winsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${drawDigitStyle}">${drawsCount}</span><span class="text-neutral-600 font-sans font-semibold">-</span><span class="${lossDigitStyle}">${lossesCount}</span>
+                  </span>
+                </div>
+                
+                <div class="flex flex-col items-center border-l border-neutral-800 pl-1.5 w-8">
+                  <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">GD</span>
+                  <span class="text-sm font-black mt-0.5 ${recentGDStyle}">${team.gd > 0 ? '+' + team.gd : team.gd}</span>
+                </div>
+                
+                <div class="flex flex-col items-center border-l border-neutral-800 pl-1.5 w-8">
+                  <span class="block text-[9px] font-sans font-bold text-neutral-500 uppercase tracking-wider">Odds</span>
+                  <span class="text-sm text-neutral-300 font-bold mt-0.5">${Number(team.odds).toFixed(0)}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-neutral-950/50 border border-neutral-800/60 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[10px] font-mono mt-0.5">
+              <div class="flex items-center shrink-0">
+                ${ftBadgeHTML || badgeHTMLSnippet}
+                <span class="text-neutral-500 uppercase font-sans font-bold tracking-wider text-[9px]">Next up:</span>
+              </div>
+              <span class="text-neutral-400 font-semibold text-right flex-1 ml-3 truncate">${cleanMatchString}</span>
+            </div>
+          `;
+          mobileContainer.appendChild(mCard);
+        });
+
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('board-wrapper').classList.remove('hidden');
+      } catch (err) {
+        document.getElementById('loading').innerText = "An unexpected interface error occurred.";
+      }
+    }
+
+    loadLeaderboard().then(() => {
+      logAnonymousPageView();
+    });
+  </script>
 </body>
 </html>
