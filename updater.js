@@ -324,7 +324,7 @@ async function sync() {
         if (msUntilKickoff > 0 && msUntilKickoff <= 172800000) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
           
-          // DYNAMIC STYLING RESTORED: Under 24 hours glows yellow, over 24 hours stays dark gray
+          // DYNAMIC STYLING: Under 24 hours glows yellow, over 24 hours stays dark gray
           const bg = hoursRemaining <= 24 ? "#ffc107" : "#262626";
           const text = hoursRemaining <= 24 ? "#000000" : "#a3a3a3";
           
@@ -344,38 +344,6 @@ async function sync() {
           if (!liveMatchMap[name] && !nextMatchMap[name]) {
             nextMatchMap[name] = formattedMatchTime.replace('{OPPONENT}', displayHome);
           }
-        }
-      }
-    });
-
-    // --- TWO-WAY MASTER TOURNAMENT SCHEDULE GUARANTEE LAYER ---
-    const masterR16Schedule = {
-      'ARG': { opponent: 'EGY', time: '2026-07-08T02:00:00+10:00' },
-      'EGY': { opponent: 'ARG', time: '2026-07-08T02:00:00+10:00' },
-      'COL': { opponent: 'SUI', time: '2026-07-08T06:00:00+10:00' },
-      'SUI': { opponent: 'COL', time: '2026-07-08T06:00:00+10:00' },
-      'ESP': { opponent: 'POR', time: '2026-07-07T05:00:00+10:00' },
-      'POR': { opponent: 'ESP', time: '2026-07-07T05:00:00+10:00' }
-    };
-
-    Object.keys(masterR16Schedule).forEach(tla => {
-      if (dynamicStatsMap.hasOwnProperty(tla)) {
-        const name = dynamicStatsMap[tla].name;
-        if (!liveMatchMap[name] && (!nextMatchMap[name] || nextMatchMap[name] === 'TBD')) {
-          const matchInfo = masterR16Schedule[tla];
-          
-          const kickoffMs = new Date(matchInfo.time).getTime();
-          const msUntilKickoff = kickoffMs - currentSyncTime.getTime();
-          let badgeHTML = "";
-
-          if (msUntilKickoff > 0 && msUntilKickoff <= 172800000) {
-            const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
-            const bg = hoursRemaining <= 24 ? "#ffc107" : "#262626";
-            const text = hoursRemaining <= 24 ? "#000000" : "#a3a3a3";
-            badgeHTML = `<span data-badge="countdown" style="background-color: ${bg}; color: ${text}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
-          }
-
-          nextMatchMap[name] = `${badgeHTML}vs ${matchInfo.opponent} • ${formatToAEST(matchInfo.time)}`;
         }
       }
     });
