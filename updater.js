@@ -395,13 +395,21 @@ async function sync() {
         const isWinner = matchWinnersSet.has(team.country);
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
         
-        // --- DYNAMIC GAMES PLAYED AUTO-CORRECTION LAYER ---
+        // --- FIXED: Dynamic Games Played Auto-Correction Layer with Finished Status Safeguards ---
         let expectedMinimumGames = 3; 
-        if (stageWeightNum === 3) expectedMinimumGames = 4;      
-        else if (stageWeightNum === 4) expectedMinimumGames = 5; 
-        else if (stageWeightNum === 5) expectedMinimumGames = 6; 
-        else if (stageWeightNum >= 6 && stageWeightNum <= 8) expectedMinimumGames = 7;  
-        else if (stageWeightNum >= 9) expectedMinimumGames = 8;  
+        if (stageWeightNum === 3) {
+          expectedMinimumGames = 4; // R32
+        } else if (stageWeightNum === 4) {
+          expectedMinimumGames = 5; // R16
+        } else if (stageWeightNum === 5) {
+          expectedMinimumGames = 6; // Quarters completed
+        } else if (stageWeightNum >= 6 && stageWeightNum <= 8) {
+          // Semi / 3rd tier: Only expect 7 games total AFTER the match is fully FINISHED
+          expectedMinimumGames = (stats.matchStatus === 'FINISHED') ? 7 : 6;
+        } else if (stageWeightNum >= 9) {
+          // Finals tier: Only expect 8 games total AFTER the Final whistle blows
+          expectedMinimumGames = (stats.matchStatus === 'FINISHED') ? 8 : 7;
+        }
 
         const currentCalculatedGames = stats.wins + stats.draws + stats.losses;
         
