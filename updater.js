@@ -56,17 +56,20 @@ function getAdvancedStage(currentStage) {
   return currentStage;
 }
 
-// Maps country names directly to stable official FIFA codes
+// --- SAFEST TLA MAPPING HANDLER ---
 function getOfficialTLA(countryName) {
+  if (!countryName) return '';
   const overrides = {
     'SPAIN': 'ESP',
     'MOROCCO': 'MAR',
     'NETHERLANDS': 'NED',
     'ARGENTINA': 'ARG',
     'COLOMBIA': 'COL',
-    'ENGLAND': 'ENG' // Safeguard code mapping
+    'ENGLAND': 'ENG',
+    'GREAT BRITAIN': 'ENG',
+    'UK': 'ENG'
   };
-  const key = countryName.toUpperCase().trim();
+  const key = String(countryName).toUpperCase().trim();
   return overrides[key] || key.substring(0, 3);
 }
 
@@ -88,8 +91,8 @@ function generateDraftCommentary(allMatches, sortedTeams) {
 
   if (recentFinishedMatches.length > 0) {
     recentFinishedMatches.forEach(m => {
-      const homeTLA = m.homeTeam?.tla || 'TBD';
-      const awayTLA = m.awayTeam?.tla || 'TBD';
+      let homeTLA = m.homeTeam?.tla || getOfficialTLA(m.homeTeam?.name);
+      let awayTLA = m.awayTeam?.tla || getOfficialTLA(m.awayTeam?.name);
       const { homeScore, awayScore } = getCleanMatchScore(m);
       const homeManager = sortedTeams.find(t => t.country_tla === homeTLA)?.manager;
       const awayManager = sortedTeams.find(t => t.country_tla === awayTLA)?.manager;
@@ -138,7 +141,7 @@ async function sync() {
     const currentSyncTime = new Date();
     const currentSyncTimeISO = currentSyncTime.toISOString();
 
-    // --- FIX: Smart Exit Layer Removed completely to ensure immediate execution on manual workflow triggers ---
+    // --- Smart Exit scheduler layer completely removed to allow immediate processing ---
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
@@ -169,8 +172,12 @@ async function sync() {
 
     // PASS 1: Aggregate Finished and Live matches, tracking active winners dynamically
     allMatches.forEach(m => {
-      const homeTLA = m.homeTeam?.tla;
-      const awayTLA = m.awayTeam?.tla;
+      let homeTLA = m.homeTeam?.tla;
+      let awayTLA = m.awayTeam?.tla;
+
+      // SAFETY FALLBACK CHECK: Resolve missing or ambiguous API codes via full name strings
+      if (!homeTLA && m.homeTeam?.name) homeTLA = getOfficialTLA(m.homeTeam.name);
+      if (!awayTLA && m.awayTeam?.name) awayTLA = getOfficialTLA(m.awayTeam.name);
 
       if (m.homeTeam?.name && homeTLA) teamNameToTlaMap[m.homeTeam.name.toUpperCase().trim()] = homeTLA;
       if (m.awayTeam?.name && awayTLA) teamNameToTlaMap[m.awayTeam.name.toUpperCase().trim()] = awayTLA;
@@ -201,7 +208,7 @@ async function sync() {
           lastFinishedMatchMap[awayTLA] = m;
         }
 
-        // --- FIXED: Pure Binary Knockout Parsing. Direct Winner evaluation maps clean progression/elimination lines. ---
+        // --- FIXED: Pure Binary Knockout Logic. Progression = Win, Elimination = Loss. Draws stay group-stage exclusive. ---
         if (m.score.winner === 'HOME_TEAM') {
           if (homeTLA) finishedMatchWinnerTLAs[m.id] = homeTLA;
           if (hasHome) {
@@ -244,8 +251,8 @@ async function sync() {
     // PASS 2: Universal, stage-matching bracket assignment loop
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
-        let homeTLA = m.homeTeam?.tla;
-        let awayTLA = m.awayTeam?.tla;
+        let homeTLA = m.homeTeam?.tla || getOfficialTLA(m.homeTeam?.name);
+        let awayTLA = m.awayTeam?.tla || getOfficialTLA(m.awayTeam?.name);
 
         if (!homeTLA && m.homeTeam?.name) {
           const lookupKey = m.homeTeam.name.toUpperCase().trim();
@@ -369,7 +376,7 @@ async function sync() {
       const lastGame = lastFinishedMatchMap[teamTLA];
       if (lastGame) {
         dbMatchTime = lastGame.utcDate;
-        const isHome = lastGame.homeTeam.tla === teamTLA;
+        const isHome = lastGame.homeTeam.tla === teamTLA || getOfficialTLA(lastGame.homeTeam.name) === teamTLA;
         const { homeScore, awayScore } = getCleanMatchScore(lastGame);
         
         if (lastGame.score.winner === 'HOME_TEAM') {
