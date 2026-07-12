@@ -129,7 +129,7 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     commentaryLines.push(`👑 LEADER: ${sortedTeams[0].manager} Enjoys the view from the summit.`, `🥄 Spoon Watch: ${sortedTeams[sortedTeams.length - 1].manager} Anchors the table.`);
   }
 
-  return commentaryLines.join("   •   ");
+  return commentaryLines.join("    •    ");
 }
 
 async function sync() {
@@ -214,6 +214,7 @@ async function sync() {
           lastFinishedMatchMap[awayTLA] = m;
         }
 
+        // --- FIXED: Direct Binary Knockout Logic. Progression = Win, Elimination = Loss. Draws stay group-stage exclusive. ---
         if (m.score.winner === 'HOME_TEAM') {
           if (homeTLA) finishedMatchWinnerTLAs[m.id] = homeTLA;
           if (hasHome) {
@@ -222,7 +223,7 @@ async function sync() {
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage);
           }
           if (hasAway) {
-            dynamicStatsMap[awayTLA].losses += 1;
+            dynamicStatsMap[awayTLA].losses += 1; 
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
@@ -259,7 +260,6 @@ async function sync() {
         let homeTLA = m.homeTeam?.tla;
         let awayTLA = m.awayTeam?.tla;
 
-        // Try direct name lookup first from verified codes
         if (!homeTLA && m.homeTeam?.name) {
           const lookupKey = m.homeTeam.name.toUpperCase().trim();
           if (teamNameToTlaMap[lookupKey]) homeTLA = teamNameToTlaMap[lookupKey];
@@ -269,7 +269,6 @@ async function sync() {
           if (teamNameToTlaMap[lookupKey]) awayTLA = teamNameToTlaMap[lookupKey];
         }
 
-        // --- DYNAMIC TOURNAMENT RADIAL BRACKET AUTO-MATCH ENGINE ---
         if (m.stage !== 'GROUP_STAGE') {
           const finishedParentMatches = allMatches.filter(pm => pm.status === 'FINISHED');
           
@@ -285,7 +284,6 @@ async function sync() {
           });
         }
 
-        // Extract any numeric sequence directly from text placeholders safely via global match checks
         if (!homeTLA && m.homeTeam?.name) {
           const digits = m.homeTeam.name.match(/\d+/);
           if (digits && finishedMatchWinnerTLAs[digits[0]]) homeTLA = finishedMatchWinnerTLAs[digits[0]];
@@ -295,7 +293,6 @@ async function sync() {
           if (digits && finishedMatchWinnerTLAs[digits[0]]) awayTLA = finishedMatchWinnerTLAs[digits[0]];
         }
 
-        // --- TIMELINE PAIRING RESOLVER ---
         if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
           const currentWinners = Object.values(finishedMatchWinnerTLAs);
           
@@ -323,11 +320,8 @@ async function sync() {
 
         if (msUntilKickoff > 0 && msUntilKickoff <= 172800000) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
-          
-          // DYNAMIC STYLING: Under 24 hours glows yellow, over 24 hours stays dark gray
           const bg = hoursRemaining <= 24 ? "#ffc107" : "#262626";
           const text = hoursRemaining <= 24 ? "#000000" : "#a3a3a3";
-          
           badgeHTML = `<span data-badge="countdown" style="background-color: ${bg}; color: ${text}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
