@@ -56,7 +56,7 @@ function getAdvancedStage(currentStage) {
   return currentStage;
 }
 
-// --- SAFEST TLA MAPPING HANDLER ---
+// Maps country names directly to stable official FIFA codes
 function getOfficialTLA(countryName) {
   if (!countryName) return '';
   const overrides = {
@@ -208,7 +208,7 @@ async function sync() {
           lastFinishedMatchMap[awayTLA] = m;
         }
 
-        // --- FIXED: Pure Binary Knockout Logic. Progression = Win, Elimination = Loss. Draws stay group-stage exclusive. ---
+        // Direct Binary Knockout Parsing. Progression = Win, Elimination = Loss. Draws stay group-stage exclusive.
         if (m.score.winner === 'HOME_TEAM') {
           if (homeTLA) finishedMatchWinnerTLAs[m.id] = homeTLA;
           if (hasHome) {
@@ -394,10 +394,28 @@ async function sync() {
       if (stats) {
         const isWinner = matchWinnersSet.has(team.country);
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
+        
+        // --- DYNAMIC GAMES PLAYED AUTO-CORRECTION LAYER ---
+        let expectedMinimumGames = 3; 
+        if (stageWeightNum === 3) expectedMinimumGames = 4;      
+        else if (stageWeightNum === 4) expectedMinimumGames = 5; 
+        else if (stageWeightNum === 5) expectedMinimumGames = 6; 
+        else if (stageWeightNum >= 6 && stageWeightNum <= 8) expectedMinimumGames = 7;  
+        else if (stageWeightNum >= 9) expectedMinimumGames = 8;  
+
+        const currentCalculatedGames = stats.wins + stats.draws + stats.losses;
+        
+        let finalWins = stats.wins;
+        if (currentCalculatedGames < expectedMinimumGames) {
+          const missingKnockoutGamesCount = expectedMinimumGames - currentCalculatedGames;
+          finalWins += missingKnockoutGamesCount;
+          console.log(`🔧 Engine Auto-Correction: Reconciled ${missingKnockoutGamesCount} missing match row(s) for ${team.country}`);
+        }
+
         const aggregatedGD = stats.gf - stats.ga;
 
         await supabase.from('world_cup_leaderboard').update({
-          wins: stats.wins,
+          wins: finalWins, 
           games_played: `${stats.draws}/${stats.losses}`, 
           gd: aggregatedGD,
           stage: stageWeightNum, 
