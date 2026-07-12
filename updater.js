@@ -58,18 +58,14 @@ function getAdvancedStage(currentStage) {
 
 // Maps country names directly to stable official FIFA codes
 function getOfficialTLA(countryName) {
-  if (!countryName) return '';
   const overrides = {
     'SPAIN': 'ESP',
     'MOROCCO': 'MAR',
     'NETHERLANDS': 'NED',
     'ARGENTINA': 'ARG',
-    'COLOMBIA': 'COL',
-    'ENGLAND': 'ENG',
-    'GREAT BRITAIN': 'ENG',
-    'UK': 'ENG'
+    'COLOMBIA': 'COL'
   };
-  const key = String(countryName).toUpperCase().trim();
+  const key = countryName.toUpperCase().trim();
   return overrides[key] || key.substring(0, 3);
 }
 
@@ -91,8 +87,8 @@ function generateDraftCommentary(allMatches, sortedTeams) {
 
   if (recentFinishedMatches.length > 0) {
     recentFinishedMatches.forEach(m => {
-      let homeTLA = m.homeTeam?.tla || getOfficialTLA(m.homeTeam?.name);
-      let awayTLA = m.awayTeam?.tla || getOfficialTLA(m.awayTeam?.name);
+      const homeTLA = m.homeTeam?.tla || 'TBD';
+      const awayTLA = m.awayTeam?.tla || 'TBD';
       const { homeScore, awayScore } = getCleanMatchScore(m);
       const homeManager = sortedTeams.find(t => t.country_tla === homeTLA)?.manager;
       const awayManager = sortedTeams.find(t => t.country_tla === awayTLA)?.manager;
@@ -133,7 +129,7 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     commentaryLines.push(`👑 LEADER: ${sortedTeams[0].manager} Enjoys the view from the summit.`, `🥄 Spoon Watch: ${sortedTeams[sortedTeams.length - 1].manager} Anchors the table.`);
   }
 
-  return commentaryLines.join("    •    ");
+  return commentaryLines.join("   •   ");
 }
 
 async function sync() {
@@ -141,7 +137,21 @@ async function sync() {
     const currentSyncTime = new Date();
     const currentSyncTimeISO = currentSyncTime.toISOString();
 
-    // --- Smart Exit scheduler layer completely removed to allow immediate processing ---
+    // ADAPTIVE SCHEDULER: Check database metadata flags before running heavy requests
+    const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
+    if (flagError) throw flagError;
+
+    if (flagCheck && flagCheck.length > 0) {
+      const isGameCurrentlyLive = flagCheck[0].notes_bool === true;
+      const minutesSinceLastDatabaseWrite = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
+      
+      if (!isGameCurrentlyLive && minutesSinceLastDatabaseWrite >= 60) {
+        if (minutesSinceLastDatabaseWrite < 55) {
+          console.log(`💤 Smart Exit: Passive window active (${Math.round(minutesSinceLastDatabaseWrite)}m elapsed). Hibernating to preserve API calls.`);
+          return; 
+        }
+      }
+    }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
@@ -172,12 +182,8 @@ async function sync() {
 
     // PASS 1: Aggregate Finished and Live matches, tracking active winners dynamically
     allMatches.forEach(m => {
-      let homeTLA = m.homeTeam?.tla;
-      let awayTLA = m.awayTeam?.tla;
-
-      // SAFETY FALLBACK CHECK: Resolve missing or ambiguous API codes via full name strings
-      if (!homeTLA && m.homeTeam?.name) homeTLA = getOfficialTLA(m.homeTeam.name);
-      if (!awayTLA && m.awayTeam?.name) awayTLA = getOfficialTLA(m.awayTeam.name);
+      const homeTLA = m.homeTeam?.tla;
+      const awayTLA = m.awayTeam?.tla;
 
       if (m.homeTeam?.name && homeTLA) teamNameToTlaMap[m.homeTeam.name.toUpperCase().trim()] = homeTLA;
       if (m.awayTeam?.name && awayTLA) teamNameToTlaMap[m.awayTeam.name.toUpperCase().trim()] = awayTLA;
@@ -208,7 +214,6 @@ async function sync() {
           lastFinishedMatchMap[awayTLA] = m;
         }
 
-        // Direct Binary Knockout Parsing. Progression = Win, Elimination = Loss. Draws stay group-stage exclusive.
         if (m.score.winner === 'HOME_TEAM') {
           if (homeTLA) finishedMatchWinnerTLAs[m.id] = homeTLA;
           if (hasHome) {
@@ -217,7 +222,7 @@ async function sync() {
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage);
           }
           if (hasAway) {
-            dynamicStatsMap[awayTLA].losses += 1; 
+            dynamicStatsMap[awayTLA].losses += 1;
             if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
@@ -251,9 +256,10 @@ async function sync() {
     // PASS 2: Universal, stage-matching bracket assignment loop
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
-        let homeTLA = m.homeTeam?.tla || getOfficialTLA(m.homeTeam?.name);
-        let awayTLA = m.awayTeam?.tla || getOfficialTLA(m.awayTeam?.name);
+        let homeTLA = m.homeTeam?.tla;
+        let awayTLA = m.awayTeam?.tla;
 
+        // Try direct name lookup first from verified codes
         if (!homeTLA && m.homeTeam?.name) {
           const lookupKey = m.homeTeam.name.toUpperCase().trim();
           if (teamNameToTlaMap[lookupKey]) homeTLA = teamNameToTlaMap[lookupKey];
@@ -263,6 +269,7 @@ async function sync() {
           if (teamNameToTlaMap[lookupKey]) awayTLA = teamNameToTlaMap[lookupKey];
         }
 
+        // --- DYNAMIC TOURNAMENT RADIAL BRACKET AUTO-MATCH ENGINE ---
         if (m.stage !== 'GROUP_STAGE') {
           const finishedParentMatches = allMatches.filter(pm => pm.status === 'FINISHED');
           
@@ -278,6 +285,7 @@ async function sync() {
           });
         }
 
+        // Extract any numeric sequence directly from text placeholders safely via global match checks
         if (!homeTLA && m.homeTeam?.name) {
           const digits = m.homeTeam.name.match(/\d+/);
           if (digits && finishedMatchWinnerTLAs[digits[0]]) homeTLA = finishedMatchWinnerTLAs[digits[0]];
@@ -287,6 +295,7 @@ async function sync() {
           if (digits && finishedMatchWinnerTLAs[digits[0]]) awayTLA = finishedMatchWinnerTLAs[digits[0]];
         }
 
+        // --- TIMELINE PAIRING RESOLVER ---
         if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
           const currentWinners = Object.values(finishedMatchWinnerTLAs);
           
@@ -314,8 +323,11 @@ async function sync() {
 
         if (msUntilKickoff > 0 && msUntilKickoff <= 172800000) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
+          
+          // DYNAMIC STYLING: Under 24 hours glows yellow, over 24 hours stays dark gray
           const bg = hoursRemaining <= 24 ? "#ffc107" : "#262626";
           const text = hoursRemaining <= 24 ? "#000000" : "#a3a3a3";
+          
           badgeHTML = `<span data-badge="countdown" style="background-color: ${bg}; color: ${text}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
@@ -376,7 +388,7 @@ async function sync() {
       const lastGame = lastFinishedMatchMap[teamTLA];
       if (lastGame) {
         dbMatchTime = lastGame.utcDate;
-        const isHome = lastGame.homeTeam.tla === teamTLA || getOfficialTLA(lastGame.homeTeam.name) === teamTLA;
+        const isHome = lastGame.homeTeam.tla === teamTLA;
         const { homeScore, awayScore } = getCleanMatchScore(lastGame);
         
         if (lastGame.score.winner === 'HOME_TEAM') {
@@ -394,36 +406,10 @@ async function sync() {
       if (stats) {
         const isWinner = matchWinnersSet.has(team.country);
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
-        
-        // --- FIXED: Dynamic Games Played Auto-Correction Layer with Finished Status Safeguards ---
-        let expectedMinimumGames = 3; 
-        if (stageWeightNum === 3) {
-          expectedMinimumGames = 4; // R32
-        } else if (stageWeightNum === 4) {
-          expectedMinimumGames = 5; // R16
-        } else if (stageWeightNum === 5) {
-          expectedMinimumGames = 6; // Quarters completed
-        } else if (stageWeightNum >= 6 && stageWeightNum <= 8) {
-          // Semi / 3rd tier: Only expect 7 games total AFTER the match is fully FINISHED
-          expectedMinimumGames = (stats.matchStatus === 'FINISHED') ? 7 : 6;
-        } else if (stageWeightNum >= 9) {
-          // Finals tier: Only expect 8 games total AFTER the Final whistle blows
-          expectedMinimumGames = (stats.matchStatus === 'FINISHED') ? 8 : 7;
-        }
-
-        const currentCalculatedGames = stats.wins + stats.draws + stats.losses;
-        
-        let finalWins = stats.wins;
-        if (currentCalculatedGames < expectedMinimumGames) {
-          const missingKnockoutGamesCount = expectedMinimumGames - currentCalculatedGames;
-          finalWins += missingKnockoutGamesCount;
-          console.log(`🔧 Engine Auto-Correction: Reconciled ${missingKnockoutGamesCount} missing match row(s) for ${team.country}`);
-        }
-
         const aggregatedGD = stats.gf - stats.ga;
 
         await supabase.from('world_cup_leaderboard').update({
-          wins: finalWins, 
+          wins: stats.wins,
           games_played: `${stats.draws}/${stats.losses}`, 
           gd: aggregatedGD,
           stage: stageWeightNum, 
