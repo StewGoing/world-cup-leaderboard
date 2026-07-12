@@ -63,7 +63,8 @@ function getOfficialTLA(countryName) {
     'MOROCCO': 'MAR',
     'NETHERLANDS': 'NED',
     'ARGENTINA': 'ARG',
-    'COLOMBIA': 'COL'
+    'COLOMBIA': 'COL',
+    'ENGLAND': 'ENG' // Safeguard code mapping
   };
   const key = countryName.toUpperCase().trim();
   return overrides[key] || key.substring(0, 3);
@@ -137,21 +138,7 @@ async function sync() {
     const currentSyncTime = new Date();
     const currentSyncTimeISO = currentSyncTime.toISOString();
 
-    // ADAPTIVE SCHEDULER: Check database metadata flags before running heavy requests
-    const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
-    if (flagError) throw flagError;
-
-    if (flagCheck && flagCheck.length > 0) {
-      const isGameCurrentlyLive = flagCheck[0].notes_bool === true;
-      const minutesSinceLastDatabaseWrite = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
-      
-      if (!isGameCurrentlyLive && minutesSinceLastDatabaseWrite >= 60) {
-        if (minutesSinceLastDatabaseWrite < 55) {
-          console.log(`💤 Smart Exit: Passive window active (${Math.round(minutesSinceLastDatabaseWrite)}m elapsed). Hibernating to preserve API calls.`);
-          return; 
-        }
-      }
-    }
+    // --- FIX: Smart Exit Layer Removed completely to ensure immediate execution on manual workflow triggers ---
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
@@ -214,7 +201,7 @@ async function sync() {
           lastFinishedMatchMap[awayTLA] = m;
         }
 
-        // --- FIXED: Direct Binary Knockout Logic. Progression = Win, Elimination = Loss. Draws stay group-stage exclusive. ---
+        // --- FIXED: Pure Binary Knockout Parsing. Direct Winner evaluation maps clean progression/elimination lines. ---
         if (m.score.winner === 'HOME_TEAM') {
           if (homeTLA) finishedMatchWinnerTLAs[m.id] = homeTLA;
           if (hasHome) {
