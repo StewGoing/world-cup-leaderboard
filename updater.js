@@ -129,7 +129,7 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     commentaryLines.push(`👑 LEADER: ${sortedTeams[0].manager} Enjoys the view from the summit.`, `🥄 Spoon Watch: ${sortedTeams[sortedTeams.length - 1].manager} Anchors the table.`);
   }
 
-  return commentaryLines.join("    •    ");
+  return commentaryLines.join("   •   ");
 }
 
 async function sync() {
@@ -137,7 +137,21 @@ async function sync() {
     const currentSyncTime = new Date();
     const currentSyncTimeISO = currentSyncTime.toISOString();
 
-    // --- Smart Exit scheduler layer completely removed to allow immediate processing ---
+    // ADAPTIVE SCHEDULER: Check database metadata flags before running heavy requests
+    const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
+    if (flagError) throw flagError;
+
+    if (flagCheck && flagCheck.length > 0) {
+      const isGameCurrentlyLive = flagCheck[0].notes_bool === true;
+      const minutesSinceLastDatabaseWrite = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
+      
+      if (!isGameCurrentlyLive && minutesSinceLastDatabaseWrite >= 60) {
+        if (minutesSinceLastDatabaseWrite < 55) {
+          console.log(`💤 Smart Exit: Passive window active (${Math.round(minutesSinceLastDatabaseWrite)}m elapsed). Hibernating to preserve API calls.`);
+          return; 
+        }
+      }
+    }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
@@ -394,15 +408,8 @@ async function sync() {
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
         const aggregatedGD = stats.gf - stats.ga;
 
-        // --- STRUCTURAL SAFETY PATIENT FOR ENGLAND ---
-        // Permanently restores the single early knockout win dropped by the chronological API array conflict
-        let verifiedWins = stats.wins;
-        if (teamTLA === 'ENG') {
-          verifiedWins = stats.wins + 1;
-        }
-
         await supabase.from('world_cup_leaderboard').update({
-          wins: verifiedWins,
+          wins: stats.wins,
           games_played: `${stats.draws}/${stats.losses}`, 
           gd: aggregatedGD,
           stage: stageWeightNum, 
