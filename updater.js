@@ -46,12 +46,19 @@ function getCleanMatchScore(matchObject) {
   return { homeScore, awayScore };
 }
 
-// FIXED: Now accepts an `isWinner` parameter to dynamically branch between Finals and 3rd Place tracks
+// FIXED: Now safely enforces that losers retain their current stage tier string instead of advancing down phantom paths
 function getAdvancedStage(currentStage, isWinner) {
   const stage = currentStage.toUpperCase();
-  if (stage.includes('LAST_32') || stage.includes('ROUND_OF_32')) return 'ROUND_OF_16';
-  if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) return 'QUARTER_FINALS';
-  if (stage.includes('QUARTER')) return 'SEMI_FINALS';
+  
+  if (stage.includes('LAST_32') || stage.includes('ROUND_OF_32')) {
+    return isWinner ? 'ROUND_OF_16' : 'ROUND_OF_32';
+  }
+  if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) {
+    return isWinner ? 'QUARTER_FINALS' : 'ROUND_OF_16';
+  }
+  if (stage.includes('QUARTER')) {
+    return isWinner ? 'SEMI_FINALS' : 'QUARTER_FINALS';
+  }
   if (stage.includes('SEMI')) {
     return isWinner ? 'FINAL' : 'THIRD_PLACE';
   }
@@ -227,6 +234,7 @@ async function sync() {
             dynamicStatsMap[awayTLA].losses += 1;
             if (m.stage !== 'GROUP_STAGE') {
               dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, false);
+              // Only shield from elimination if they are losing an official SEMI_FINAL match
               if (m.stage !== 'SEMI_FINALS') {
                 dynamicStatsMap[awayTLA].eliminated = true;
               }
@@ -243,6 +251,7 @@ async function sync() {
             dynamicStatsMap[homeTLA].losses += 1;
             if (m.stage !== 'GROUP_STAGE') {
               dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, false);
+              // Only shield from elimination if they are losing an official SEMI_FINAL match
               if (m.stage !== 'SEMI_FINALS') {
                 dynamicStatsMap[homeTLA].eliminated = true;
               }
