@@ -129,7 +129,7 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     commentaryLines.push(`👑 LEADER: ${sortedTeams[0].manager} Enjoys the view from the summit.`, `🥄 Spoon Watch: ${sortedTeams[sortedTeams.length - 1].manager} Anchors the table.`);
   }
 
-  return commentaryLines.join("   •   ");
+  return commentaryLines.join("    •    ");
 }
 
 async function sync() {
@@ -223,7 +223,10 @@ async function sync() {
           }
           if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
-            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
+            // Shield teams moving from Semis to 3rd Playoff from getting tagged as eliminated
+            if (m.stage !== 'GROUP_STAGE' && m.stage !== 'SEMI_FINALS') {
+              dynamicStatsMap[awayTLA].eliminated = true; 
+            }
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
           if (awayTLA) finishedMatchWinnerTLAs[m.id] = awayTLA;
@@ -234,7 +237,10 @@ async function sync() {
           }
           if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
-            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].eliminated = true;
+            // Shield teams moving from Semis to 3rd Playoff from getting tagged as eliminated
+            if (m.stage !== 'GROUP_STAGE' && m.stage !== 'SEMI_FINALS') {
+              dynamicStatsMap[homeTLA].eliminated = true;
+            }
           }
         } else {
           if (hasHome) dynamicStatsMap[homeTLA].draws += 1;
@@ -323,11 +329,8 @@ async function sync() {
 
         if (msUntilKickoff > 0 && msUntilKickoff <= 172800000) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
-          
-          // DYNAMIC STYLING: Under 24 hours glows yellow, over 24 hours stays dark gray
           const bg = hoursRemaining <= 24 ? "#ffc107" : "#262626";
           const text = hoursRemaining <= 24 ? "#000000" : "#a3a3a3";
-          
           badgeHTML = `<span data-badge="countdown" style="background-color: ${bg}; color: ${text}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
@@ -379,6 +382,7 @@ async function sync() {
     for (const team of dbTeams) {
       const teamTLA = getOfficialTLA(team.country);
       const stats = dynamicStatsMap[teamTLA];
+      
       const nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || (stats?.eliminated ? "❌ Eliminated" : "TBD");
 
       let dbMatchTime = null;
