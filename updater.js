@@ -25,13 +25,9 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('LAST_32') || stage.includes('ROUND_OF_32')) return 3;
   if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) return 4;
   if (stage.includes('QUARTER')) return 5;
-  
-  // 3rd Place Playoff now cleanly ranks below active Semis (6.0)
-  if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 6.2 : 6.1) : 5.5;
-  if (stage.includes('SEMI')) return 6.0;
-  
-  // Finals Track: Active pending match sits at 8.0, shifting to 9 or 10 upon completion
-  if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.0;
+  if (stage.includes('SEMI')) return 6;
+  if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8 : 7) : 6;
+  if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 11;
   return 1;
 }
 
@@ -133,13 +129,29 @@ function generateDraftCommentary(allMatches, sortedTeams) {
     commentaryLines.push(`👑 LEADER: ${sortedTeams[0].manager} Enjoys the view from the summit.`, `🥄 Spoon Watch: ${sortedTeams[sortedTeams.length - 1].manager} Anchors the table.`);
   }
 
-  return commentaryLines.join("    •    ");
+  return commentaryLines.join("   •   ");
 }
 
 async function sync() {
   try {
     const currentSyncTime = new Date();
     const currentSyncTimeISO = currentSyncTime.toISOString();
+
+    // ADAPTIVE SCHEDULER: Check database metadata flags before running heavy requests
+    const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
+    if (flagError) throw flagError;
+
+    if (flagCheck && flagCheck.length > 0) {
+      const isGameCurrentlyLive = flagCheck[0].notes_bool === true;
+      const minutesSinceLastDatabaseWrite = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
+      
+      if (!isGameCurrentlyLive && minutesSinceLastDatabaseWrite >= 60) {
+        if (minutesSinceLastDatabaseWrite < 55) {
+          console.log(`💤 Smart Exit: Passive window active (${Math.round(minutesSinceLastDatabaseWrite)}m elapsed). Hibernating to preserve API calls.`);
+          return; 
+        }
+      }
+    }
 
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
@@ -168,7 +180,7 @@ async function sync() {
       };
     });
 
-    // PASS 1: Aggregate Finished and Live matches
+    // PASS 1: Aggregate Finished and Live matches, tracking active winners dynamically
     allMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla;
       const awayTLA = m.awayTeam?.tla;
@@ -211,13 +223,7 @@ async function sync() {
           }
           if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
-            // Shield teams dropping from Semis to 3rd Place Playoff from elimination status
-            if (m.stage !== 'GROUP_STAGE') {
-              const advancedStage = getAdvancedStage(m.stage);
-              if (!advancedStage.toUpperCase().includes('FINAL') && !m.stage.toUpperCase().includes('SEMI')) {
-                dynamicStatsMap[awayTLA].eliminated = true;
-              }
-            }
+            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].eliminated = true; 
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
           if (awayTLA) finishedMatchWinnerTLAs[m.id] = awayTLA;
@@ -228,13 +234,7 @@ async function sync() {
           }
           if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
-            // Shield teams dropping from Semis to 3rd Place Playoff from elimination status
-            if (m.stage !== 'GROUP_STAGE') {
-              const advancedStage = getAdvancedStage(m.stage);
-              if (!advancedStage.toUpperCase().includes('FINAL') && !m.stage.toUpperCase().includes('SEMI')) {
-                dynamicStatsMap[homeTLA].eliminated = true;
-              }
-            }
+            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].eliminated = true;
           }
         } else {
           if (hasHome) dynamicStatsMap[homeTLA].draws += 1;
@@ -253,12 +253,13 @@ async function sync() {
       }
     });
 
-    // PASS 2: Universal bracket assignment loop
+    // PASS 2: Universal, stage-matching bracket assignment loop
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         let homeTLA = m.homeTeam?.tla;
         let awayTLA = m.awayTeam?.tla;
 
+        // Try direct name lookup first from verified codes
         if (!homeTLA && m.homeTeam?.name) {
           const lookupKey = m.homeTeam.name.toUpperCase().trim();
           if (teamNameToTlaMap[lookupKey]) homeTLA = teamNameToTlaMap[lookupKey];
@@ -268,6 +269,7 @@ async function sync() {
           if (teamNameToTlaMap[lookupKey]) awayTLA = teamNameToTlaMap[lookupKey];
         }
 
+        // --- DYNAMIC TOURNAMENT RADIAL BRACKET AUTO-MATCH ENGINE ---
         if (m.stage !== 'GROUP_STAGE') {
           const finishedParentMatches = allMatches.filter(pm => pm.status === 'FINISHED');
           
@@ -283,6 +285,7 @@ async function sync() {
           });
         }
 
+        // Extract any numeric sequence directly from text placeholders safely via global match checks
         if (!homeTLA && m.homeTeam?.name) {
           const digits = m.homeTeam.name.match(/\d+/);
           if (digits && finishedMatchWinnerTLAs[digits[0]]) homeTLA = finishedMatchWinnerTLAs[digits[0]];
@@ -292,6 +295,7 @@ async function sync() {
           if (digits && finishedMatchWinnerTLAs[digits[0]]) awayTLA = finishedMatchWinnerTLAs[digits[0]];
         }
 
+        // --- TIMELINE PAIRING RESOLVER ---
         if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
           const currentWinners = Object.values(finishedMatchWinnerTLAs);
           
@@ -319,8 +323,11 @@ async function sync() {
 
         if (msUntilKickoff > 0 && msUntilKickoff <= 172800000) {
           const hoursRemaining = Math.ceil(msUntilKickoff / (1000 * 60 * 60));
+          
+          // DYNAMIC STYLING: Under 24 hours glows yellow, over 24 hours stays dark gray
           const bg = hoursRemaining <= 24 ? "#ffc107" : "#262626";
           const text = hoursRemaining <= 24 ? "#000000" : "#a3a3a3";
+          
           badgeHTML = `<span data-badge="countdown" style="background-color: ${bg}; color: ${text}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 6px; display: inline-block; vertical-align: middle;">⚡ IN ${hoursRemaining}H</span>`;
         }
 
@@ -401,14 +408,8 @@ async function sync() {
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
         const aggregatedGD = stats.gf - stats.ga;
 
-        // --- SINGLE-LINE STRUCTURAL ERROR ALIGNMENT FOR ENGLAND ---
-        let verifiedWins = stats.wins;
-        if (teamTLA === 'ENG') {
-          verifiedWins = stats.wins + 1;
-        }
-
         await supabase.from('world_cup_leaderboard').update({
-          wins: verifiedWins,
+          wins: stats.wins,
           games_played: `${stats.draws}/${stats.losses}`, 
           gd: aggregatedGD,
           stage: stageWeightNum, 
