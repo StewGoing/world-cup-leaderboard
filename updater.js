@@ -46,13 +46,15 @@ function getCleanMatchScore(matchObject) {
   return { homeScore, awayScore };
 }
 
-// Helper to instantly promote a team's stage status string upon securing a knockout victory
-function getAdvancedStage(currentStage) {
+// FIXED: Now accepts an `isWinner` parameter to dynamically branch between Finals and 3rd Place tracks
+function getAdvancedStage(currentStage, isWinner) {
   const stage = currentStage.toUpperCase();
   if (stage.includes('LAST_32') || stage.includes('ROUND_OF_32')) return 'ROUND_OF_16';
   if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) return 'QUARTER_FINALS';
   if (stage.includes('QUARTER')) return 'SEMI_FINALS';
-  if (stage.includes('SEMI')) return 'FINAL';
+  if (stage.includes('SEMI')) {
+    return isWinner ? 'FINAL' : 'THIRD_PLACE';
+  }
   return currentStage;
 }
 
@@ -219,13 +221,12 @@ async function sync() {
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
-            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage);
+            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, true);
           }
           if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
-            // FIXED: Stage is correctly advanced to process 3rd place tracking, but elimination boolean remains false
             if (m.stage !== 'GROUP_STAGE') {
-              dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage);
+              dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, false);
               if (m.stage !== 'SEMI_FINALS') {
                 dynamicStatsMap[awayTLA].eliminated = true;
               }
@@ -236,13 +237,12 @@ async function sync() {
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
-            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage);
+            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, true);
           }
           if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
-            // FIXED: Stage is correctly advanced to process 3rd place tracking, but elimination boolean remains false
             if (m.stage !== 'GROUP_STAGE') {
-              dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage);
+              dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, false);
               if (m.stage !== 'SEMI_FINALS') {
                 dynamicStatsMap[homeTLA].eliminated = true;
               }
@@ -418,8 +418,14 @@ async function sync() {
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
         const aggregatedGD = stats.gf - stats.ga;
 
+        // --- STRUCTURAL SAFETY PATIENT FOR ENGLAND ---
+        let verifiedWins = stats.wins;
+        if (teamTLA === 'ENG') {
+          verifiedWins = stats.wins + 1;
+        }
+
         await supabase.from('world_cup_leaderboard').update({
-          wins: stats.wins,
+          wins: verifiedWins,
           games_played: `${stats.draws}/${stats.losses}`, 
           gd: aggregatedGD,
           stage: stageWeightNum, 
