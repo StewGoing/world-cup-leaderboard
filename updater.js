@@ -223,9 +223,12 @@ async function sync() {
           }
           if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
-            // Shield teams moving from Semis to 3rd Playoff from getting tagged as eliminated
-            if (m.stage !== 'GROUP_STAGE' && m.stage !== 'SEMI_FINALS') {
-              dynamicStatsMap[awayTLA].eliminated = true; 
+            // FIXED: Stage is correctly advanced to process 3rd place tracking, but elimination boolean remains false
+            if (m.stage !== 'GROUP_STAGE') {
+              dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage);
+              if (m.stage !== 'SEMI_FINALS') {
+                dynamicStatsMap[awayTLA].eliminated = true;
+              }
             }
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
@@ -237,9 +240,12 @@ async function sync() {
           }
           if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
-            // Shield teams moving from Semis to 3rd Playoff from getting tagged as eliminated
-            if (m.stage !== 'GROUP_STAGE' && m.stage !== 'SEMI_FINALS') {
-              dynamicStatsMap[homeTLA].eliminated = true;
+            // FIXED: Stage is correctly advanced to process 3rd place tracking, but elimination boolean remains false
+            if (m.stage !== 'GROUP_STAGE') {
+              dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage);
+              if (m.stage !== 'SEMI_FINALS') {
+                dynamicStatsMap[homeTLA].eliminated = true;
+              }
             }
           }
         } else {
