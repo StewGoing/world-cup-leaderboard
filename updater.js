@@ -26,8 +26,10 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('LAST_16') || stage.includes('ROUND_OF_16')) return 4;
   if (stage.includes('QUARTER')) return 5;
   if (stage.includes('SEMI')) return 6;
-  if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8 : 7) : 6;
-  if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 11;
+  
+  // FIX: Maps pending playoff matches cleanly to individual tier weights (5.5 for 3rd place, 8.0 for finals)
+  if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.2 : 7.2) : 5.5;
+  if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.0;
   return 1;
 }
 
@@ -46,7 +48,7 @@ function getCleanMatchScore(matchObject) {
   return { homeScore, awayScore };
 }
 
-// FIXED: Now safely enforces that losers retain their current stage tier string instead of advancing down phantom paths
+// Helper to instantly promote a team's stage status string upon securing a knockout victory
 function getAdvancedStage(currentStage, isWinner) {
   const stage = currentStage.toUpperCase();
   
@@ -228,13 +230,16 @@ async function sync() {
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
-            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, true);
+            if (m.stage !== 'GROUP_STAGE') {
+              dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, true);
+              dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; // FIX: Reset state status so completed semi doesn't trip upcoming rounds
+            }
           }
           if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
             if (m.stage !== 'GROUP_STAGE') {
               dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, false);
-              // Only shield from elimination if they are losing an official SEMI_FINAL match
+              dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; // FIX: Reset state status so completed semi doesn't trip upcoming rounds
               if (m.stage !== 'SEMI_FINALS') {
                 dynamicStatsMap[awayTLA].eliminated = true;
               }
@@ -245,13 +250,16 @@ async function sync() {
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
-            if (m.stage !== 'GROUP_STAGE') dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, true);
+            if (m.stage !== 'GROUP_STAGE') {
+              dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, true);
+              dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; // FIX: Reset state status so completed semi doesn't trip upcoming rounds
+            }
           }
           if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
             if (m.stage !== 'GROUP_STAGE') {
               dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, false);
-              // Only shield from elimination if they are losing an official SEMI_FINAL match
+              dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; // FIX: Reset state status so completed semi doesn't trip upcoming rounds
               if (m.stage !== 'SEMI_FINALS') {
                 dynamicStatsMap[homeTLA].eliminated = true;
               }
