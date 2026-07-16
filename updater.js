@@ -27,10 +27,9 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('QUARTER')) return 5;
   if (stage.includes('SEMI')) return 6;
   
-  // FIXED: Aligned 3rd place match outcomes directly with specification blueprint (Winner = 8.0, Loser = 7.2)
-  // Stripped out the 8.2 winner bump that allowed 3rd place to blend into active final brackets.
-  if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.0 : 7.2) : 5.5;
-  if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.2;
+  // REALIGNED: 8.0 is the Active Finals Track, 8.2 is the finalized 3rd Place position
+  if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.2 : 7.2) : 5.5;
+  if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.0;
   return 1;
 }
 
@@ -157,7 +156,7 @@ async function sync() {
       const isGameCurrentlyLive = flagCheck[0].notes_bool === true;
       const minutesSinceLastDatabaseWrite = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
       
-      // FIXED: Restructured conditional bounds so the scheduler checks correctly against the elapsed 60m gate
+      // FIXED: Safely structured conditional bounds for the elapsed 60m gate
       if (!isGameCurrentlyLive && minutesSinceLastDatabaseWrite < 60) {
         console.log(`💤 Smart Exit: Passive window active (${Math.round(minutesSinceLastDatabaseWrite)}m elapsed). Hibernating to preserve API calls.`);
         return; 
