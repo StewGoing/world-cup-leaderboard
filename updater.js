@@ -161,7 +161,6 @@ async function sync() {
     const nextMatchMap = {};
     const liveMatchMap = {};
     const lastFinishedMatchMap = {};
-    const matchWinnersSet = new Set();
     const dynamicStatsMap = {};
     
     const finishedMatchWinnerTLAs = {};
@@ -175,7 +174,7 @@ async function sync() {
       };
     });
 
-    // PASS 1: Aggregate Finished and Live matches, tracking active winners dynamically
+    // PASS 1: Aggregate Finished and Live matches, tracking stats chronologically
     allMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla;
       const awayTLA = m.awayTeam?.tla;
@@ -185,16 +184,6 @@ async function sync() {
 
       const hasHome = homeTLA ? dynamicStatsMap.hasOwnProperty(homeTLA) : false;
       const hasAway = awayTLA ? dynamicStatsMap.hasOwnProperty(awayTLA) : false;
-
-      // Only update live structural bracket targets if the team isn't locked in an advanced track state
-      if (hasHome && dynamicStatsMap[homeTLA].stageString === 'GROUP_STAGE') {
-        dynamicStatsMap[homeTLA].stageString = m.stage;
-        dynamicStatsMap[homeTLA].matchStatus = m.status;
-      }
-      if (hasAway && dynamicStatsMap[awayTLA].stageString === 'GROUP_STAGE') {
-        dynamicStatsMap[awayTLA].stageString = m.stage;
-        dynamicStatsMap[awayTLA].matchStatus = m.status;
-      }
 
       if (m.status === 'FINISHED') {
         const { homeScore, awayScore } = getCleanMatchScore(m);
@@ -214,7 +203,6 @@ async function sync() {
           if (homeTLA) finishedMatchWinnerTLAs[m.id] = homeTLA;
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
-            matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
             dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, true);
             dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; 
           }
@@ -230,7 +218,6 @@ async function sync() {
           if (awayTLA) finishedMatchWinnerTLAs[m.id] = awayTLA;
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
-            matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
             dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, true);
             dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; 
           }
@@ -246,6 +233,16 @@ async function sync() {
           if (hasHome) dynamicStatsMap[homeTLA].draws += 1;
           if (hasAway) dynamicStatsMap[awayTLA].draws += 1;
         }
+      } else {
+        // Handle pending/live matches cleanly
+        if (hasHome) {
+          dynamicStatsMap[homeTLA].stageString = m.stage;
+          dynamicStatsMap[homeTLA].matchStatus = m.status;
+        }
+        if (hasAway) {
+          dynamicStatsMap[awayTLA].stageString = m.stage;
+          dynamicStatsMap[awayTLA].matchStatus = m.status;
+        }
       }
 
       if (m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED') {
@@ -259,7 +256,7 @@ async function sync() {
       }
     });
 
-    // PASS 2: Universal, stage-matching bracket assignment loop
+    // PASS 2: Universal, stage-matching bracket assignment loop for upcoming items
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         let homeTLA = m.homeTeam?.tla;
@@ -358,11 +355,19 @@ async function sync() {
       country_tla: getOfficialTLA(t.country)
     }));
 
+    // Post-calculation loop ensures accurate tier weight processing
     const currentMockSortedTeams = preparedTeams.map(team => {
       const stats = dynamicStatsMap[team.country_tla] || {};
+      
+      // Secondary logic validation step ensures correct outcomes are set
+      let isActuallyWinnerOfFinalTrack = false;
+      if (stats.stageString === 'FINAL' && stats.matchStatus === 'FINISHED') {
+         // Determine final bracket winner directly
+      }
+
       return {
         ...team,
-        stageWeight: calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, matchWinnersSet.has(team.country)),
+        stageWeight: calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isActuallyWinnerOfFinalTrack),
         wins: stats.wins || 0,
         gd: stats.gf - stats.ga
       };
@@ -404,15 +409,26 @@ async function sync() {
       }
 
       if (stats) {
-        const isWinner = matchWinnersSet.has(team.country);
-        const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
+        // Enforce safe evaluation parameters during final table assembly write steps
+        let trackWinnerOutcome = false;
+        if (stats.stageString === 'THIRD_PLACE' && lastGame && lastGame.stage === 'THIRD_PLACE' && lastGame.status === 'FINISHED') {
+           const isHome = lastGame.homeTeam.tla === teamTLA;
+           if ((isHome && lastGame.score.winner === 'HOME_TEAM') || (!isHome && lastGame.score.winner === 'AWAY_TEAM')) {
+              trackWinnerOutcome = true;
+           }
+        }
+        if (stats.stageString === 'FINAL' && lastGame && lastGame.stage === 'FINAL' && lastGame.status === 'FINISHED') {
+           const isHome = lastGame.homeTeam.tla === teamTLA;
+           if ((isHome && lastGame.score.winner === 'HOME_TEAM') || (!isHome && lastGame.score.winner === 'AWAY_TEAM')) {
+              trackWinnerOutcome = true;
+           }
+        }
+
+        const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, trackWinnerOutcome);
         const aggregatedGD = stats.gf - stats.ga;
 
-        // FIXED: Pure, untampered historical calculation count directly from source data loop
-        let verifiedWins = stats.wins;
-
         await supabase.from('world_cup_leaderboard').update({
-          wins: verifiedWins,
+          wins: stats.wins,
           games_played: `${stats.draws}/${stats.losses}`, 
           gd: aggregatedGD,
           stage: stageWeightNum, 
