@@ -111,7 +111,7 @@
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
-    // --- UPDATED SYNCHRONIZED MAPPING ENG --- 
+    // --- SIMPLIFIED SHORT STAGE BADGES LABELS ---
     const STAGES = { 
       1: "Group", 
       3: "R32", 
@@ -224,13 +224,21 @@
           // Choose stage label text dynamically based on 3rd place playoff tracking
           let activeLabelText = STAGES[team.stage] || "Group";
 
+          // --- BULLETPROOF VISUAL PLAYOFF LABEL BINDING ---
           let stageLabelColor = 'text-amber-400 border-amber-500/20';
-          if (team.stage === 8.0) stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black animate-pulse';
-          if (team.stage === 5.5) stageLabelColor = 'text-purple-400 border-purple-500/30 bg-purple-950/20 animate-pulse';
-          if (team.stage === 10) stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black';
-          if (team.stage === 9) stageLabelColor = 'text-zinc-300 border-zinc-500/20 bg-zinc-900/40';
-          if (team.stage === 8.2) stageLabelColor = 'text-amber-500/90 border-amber-500/30 bg-amber-950/20';
-          if (team.stage === 7.2) stageLabelColor = 'text-stone-400 border-stone-500/20 bg-stone-900/30';
+          if (stageNum === 8.0 || stageNum === 11) {
+            stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black animate-pulse';
+          } else if (stageNum === 5.5) {
+            stageLabelColor = 'text-purple-400 border-purple-500/30 bg-purple-950/20 animate-pulse';
+          } else if (stageNum === 10) {
+            stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black';
+          } else if (stageNum === 9) {
+            stageLabelColor = 'text-zinc-300 border-zinc-500/20 bg-zinc-900/40';
+          } else if (stageNum === 8.2) {
+            stageLabelColor = 'text-amber-500/90 border-amber-500/30 bg-amber-950/20';
+          } else if (stageNum === 7.2) {
+            stageLabelColor = 'text-stone-400 border-stone-500/20 bg-stone-900/30';
+          }
 
           let showFTBadge = false;
           const hasActiveLiveOrCountdown = matchString.includes('data-badge="live"') || matchString.includes('data-badge="countdown"');
