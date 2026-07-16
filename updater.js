@@ -27,9 +27,10 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('QUARTER')) return 5;
   if (stage.includes('SEMI')) return 6;
   
-  // FIX: Explicitly maps advanced knockout strings to the correct decimal values for your index.html
-  if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.2 : 7.2) : 5.5;
-  if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.0;
+  // FIXED: Aligned 3rd place match outcomes directly with specification blueprint (Winner = 8.0, Loser = 7.2)
+  // Stripped out the 8.2 winner bump that allowed 3rd place to blend into active final brackets.
+  if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.0 : 7.2) : 5.5;
+  if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.2;
   return 1;
 }
 
@@ -156,11 +157,10 @@ async function sync() {
       const isGameCurrentlyLive = flagCheck[0].notes_bool === true;
       const minutesSinceLastDatabaseWrite = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
       
-      if (!isGameCurrentlyLive && minutesSinceLastDatabaseWrite >= 60) {
-        if (minutesSinceLastDatabaseWrite < 55) {
-          console.log(`💤 Smart Exit: Passive window active (${Math.round(minutesSinceLastDatabaseWrite)}m elapsed). Hibernating to preserve API calls.`);
-          return; 
-        }
+      // FIXED: Restructured conditional bounds so the scheduler checks correctly against the elapsed 60m gate
+      if (!isGameCurrentlyLive && minutesSinceLastDatabaseWrite < 60) {
+        console.log(`💤 Smart Exit: Passive window active (${Math.round(minutesSinceLastDatabaseWrite)}m elapsed). Hibernating to preserve API calls.`);
+        return; 
       }
     }
 
@@ -431,7 +431,6 @@ async function sync() {
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
         const aggregatedGD = stats.gf - stats.ga;
 
-        // --- FIXED: AUTOMATIC +1 ADDITION REMOVED TO PREVENT DOUBLE-COUNTING ---
         let verifiedWins = stats.wins;
 
         await supabase.from('world_cup_leaderboard').update({
