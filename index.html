@@ -112,7 +112,7 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
     // --- SIMPLIFIED SHORT STAGE BADGES LABELS ---
-    // FIXED: Corrected mapping values to align precisely with blueprint tracking structure
+    // FIXED: Realigned dictionary mapping values exactly to numeric structural requirements
     const STAGES = { 
       1: "Group", 
       3: "R32", 
@@ -121,8 +121,8 @@
       6: "Semis", 
       5.5: "3RD PLAYOFF",
       7.2: "4th Place", 
-      8.0: "3rd Place", 
-      8.2: "FINALS",
+      8.0: "FINALS",     
+      8.2: "3rd Place",  
       9: "2nd Place", 
       10: "Champion"
     };
@@ -225,9 +225,9 @@
           let activeLabelText = STAGES[team.stage] || "Group";
 
           // --- BULLETPROOF VISUAL PLAYOFF LABEL BINDING ---
-          // FIXED: Adjusted conditional hooks to properly isolate the 8.2 Finals animated emerald badge theme
+          // FIXED: Standardized conditional targets to capture the 8.0 Finals emerald theme correctly
           let stageLabelColor = 'text-amber-400 border-amber-500/20';
-          if (stageNum === 8.2) {
+          if (stageNum === 8.0) {
             stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black animate-pulse';
           } else if (stageNum === 5.5) {
             stageLabelColor = 'text-purple-400 border-purple-500/30 bg-purple-950/20 animate-pulse';
@@ -235,7 +235,7 @@
             stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black';
           } else if (stageNum === 9) {
             stageLabelColor = 'text-zinc-300 border-zinc-500/20 bg-zinc-900/40';
-          } else if (stageNum === 8.0) {
+          } else if (stageNum === 8.2) {
             stageLabelColor = 'text-amber-500/90 border-amber-500/30 bg-amber-950/20';
           } else if (stageNum === 7.2) {
             stageLabelColor = 'text-stone-400 border-stone-500/20 bg-stone-900/30';
@@ -279,7 +279,7 @@
           }
 
           // --- THE VISUAL ROW SHADING TRACKING FIX ---
-          // Prevent fading for active remaining playoff teams (Stage 5.5 and 8.2 stay vibrant)
+          // Prevent fading for active remaining playoff teams (Stage 5.5 and 8.0 stay vibrant)
           const appliesVisualRowFade = isEliminated && stageNum <= 5;
 
           let desktopRowClass = `transition hover:bg-neutral-800/15 ${appliesVisualRowFade ? 'row-eliminated bg-neutral-950/40' : ''}`;
