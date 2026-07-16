@@ -27,7 +27,7 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('QUARTER')) return 5;
   if (stage.includes('SEMI')) return 6;
   
-  // FIX: Maps pending playoff matches cleanly to individual tier weights (5.5 for 3rd place, 8.0 for finals)
+  // FIX: Explicitly maps advanced knockout strings to the correct decimal values for your index.html
   if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.2 : 7.2) : 5.5;
   if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.0;
   return 1;
@@ -48,7 +48,7 @@ function getCleanMatchScore(matchObject) {
   return { homeScore, awayScore };
 }
 
-// Helper to instantly promote a team's stage status string upon securing a knockout victory
+// Enforces that losers retain their current stage tier string instead of advancing down phantom paths
 function getAdvancedStage(currentStage, isWinner) {
   const stage = currentStage.toUpperCase();
   
@@ -232,14 +232,14 @@ async function sync() {
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
             if (m.stage !== 'GROUP_STAGE') {
               dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, true);
-              dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; // FIX: Reset state status so completed semi doesn't trip upcoming rounds
+              dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; 
             }
           }
           if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
             if (m.stage !== 'GROUP_STAGE') {
               dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, false);
-              dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; // FIX: Reset state status so completed semi doesn't trip upcoming rounds
+              dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; 
               if (m.stage !== 'SEMI_FINALS') {
                 dynamicStatsMap[awayTLA].eliminated = true;
               }
@@ -252,14 +252,14 @@ async function sync() {
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
             if (m.stage !== 'GROUP_STAGE') {
               dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, true);
-              dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; // FIX: Reset state status so completed semi doesn't trip upcoming rounds
+              dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; 
             }
           }
           if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
             if (m.stage !== 'GROUP_STAGE') {
               dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, false);
-              dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; // FIX: Reset state status so completed semi doesn't trip upcoming rounds
+              dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; 
               if (m.stage !== 'SEMI_FINALS') {
                 dynamicStatsMap[homeTLA].eliminated = true;
               }
@@ -288,7 +288,6 @@ async function sync() {
         let homeTLA = m.homeTeam?.tla;
         let awayTLA = m.awayTeam?.tla;
 
-        // Try direct name lookup first from verified codes
         if (!homeTLA && m.homeTeam?.name) {
           const lookupKey = m.homeTeam.name.toUpperCase().trim();
           if (teamNameToTlaMap[lookupKey]) homeTLA = teamNameToTlaMap[lookupKey];
@@ -298,7 +297,6 @@ async function sync() {
           if (teamNameToTlaMap[lookupKey]) awayTLA = teamNameToTlaMap[lookupKey];
         }
 
-        // --- DYNAMIC TOURNAMENT RADIAL BRACKET AUTO-MATCH ENGINE ---
         if (m.stage !== 'GROUP_STAGE') {
           const finishedParentMatches = allMatches.filter(pm => pm.status === 'FINISHED');
           
@@ -314,7 +312,6 @@ async function sync() {
           });
         }
 
-        // Extract any numeric sequence directly from text placeholders safely via global match checks
         if (!homeTLA && m.homeTeam?.name) {
           const digits = m.homeTeam.name.match(/\d+/);
           if (digits && finishedMatchWinnerTLAs[digits[0]]) homeTLA = finishedMatchWinnerTLAs[digits[0]];
@@ -324,7 +321,6 @@ async function sync() {
           if (digits && finishedMatchWinnerTLAs[digits[0]]) awayTLA = finishedMatchWinnerTLAs[digits[0]];
         }
 
-        // --- TIMELINE PAIRING RESOLVER ---
         if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
           const currentWinners = Object.values(finishedMatchWinnerTLAs);
           
@@ -435,11 +431,8 @@ async function sync() {
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
         const aggregatedGD = stats.gf - stats.ga;
 
-        // --- STRUCTURAL SAFETY PATIENT FOR ENGLAND ---
+        // --- FIXED: AUTOMATIC +1 ADDITION REMOVED TO PREVENT DOUBLE-COUNTING ---
         let verifiedWins = stats.wins;
-        if (teamTLA === 'ENG') {
-          verifiedWins = stats.wins + 1;
-        }
 
         await supabase.from('world_cup_leaderboard').update({
           wins: verifiedWins,
