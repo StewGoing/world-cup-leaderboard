@@ -148,21 +148,6 @@ async function sync() {
     const currentSyncTime = new Date();
     const currentSyncTimeISO = currentSyncTime.toISOString();
 
-    // ADAPTIVE SCHEDULER: Check database metadata flags before running heavy requests
-    const { data: flagCheck, error: flagError } = await supabase.from('world_cup_leaderboard').select('notes_bool, updated_at').limit(1);
-    if (flagError) throw flagError;
-
-    if (flagCheck && flagCheck.length > 0) {
-      const isGameCurrentlyLive = flagCheck[0].notes_bool === true;
-      const minutesSinceLastDatabaseWrite = (currentSyncTime.getTime() - new Date(flagCheck[0].updated_at).getTime()) / 1000 / 60;
-      
-      // FIXED: Safely structured conditional bounds for the elapsed 60m gate
-      if (!isGameCurrentlyLive && minutesSinceLastDatabaseWrite < 60) {
-        console.log(`💤 Smart Exit: Passive window active (${Math.round(minutesSinceLastDatabaseWrite)}m elapsed). Hibernating to preserve API calls.`);
-        return; 
-      }
-    }
-
     console.log("Fetching comprehensive competition fixtures historical dataset...");
     const fixturesRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
       headers: { 'X-Auth-Token': FOOTBALL_DATA_API_KEY }
@@ -430,6 +415,8 @@ async function sync() {
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
         const aggregatedGD = stats.gf - stats.ga;
 
+        // FIXED: England win override stripped out completely. 
+        // Wins are calculated directly from raw clean data elements.
         let verifiedWins = stats.wins;
 
         await supabase.from('world_cup_leaderboard').update({
