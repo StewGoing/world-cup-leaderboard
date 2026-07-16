@@ -27,7 +27,7 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('QUARTER')) return 5;
   if (stage.includes('SEMI')) return 6;
   
-  // REALIGNED: 8.0 is the Active Finals Track, 8.2 is the finalized 3rd Place position
+  // REALIGNED: 5.5 = Active Playoff, 7.2/8.2 = Finished Outcomes, 8.0 = Active Finals Track
   if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.2 : 7.2) : 5.5;
   if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.0;
   return 1;
@@ -186,11 +186,12 @@ async function sync() {
       const hasHome = homeTLA ? dynamicStatsMap.hasOwnProperty(homeTLA) : false;
       const hasAway = awayTLA ? dynamicStatsMap.hasOwnProperty(awayTLA) : false;
 
-      if (hasHome) {
+      // Only update live structural bracket targets if the team isn't locked in an advanced track state
+      if (hasHome && dynamicStatsMap[homeTLA].stageString === 'GROUP_STAGE') {
         dynamicStatsMap[homeTLA].stageString = m.stage;
         dynamicStatsMap[homeTLA].matchStatus = m.status;
       }
-      if (hasAway) {
+      if (hasAway && dynamicStatsMap[awayTLA].stageString === 'GROUP_STAGE') {
         dynamicStatsMap[awayTLA].stageString = m.stage;
         dynamicStatsMap[awayTLA].matchStatus = m.status;
       }
@@ -214,19 +215,15 @@ async function sync() {
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[homeTLA].name);
-            if (m.stage !== 'GROUP_STAGE') {
-              dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, true);
-              dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; 
-            }
+            dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, true);
+            dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; 
           }
           if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
-            if (m.stage !== 'GROUP_STAGE') {
-              dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, false);
-              dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; 
-              if (m.stage !== 'SEMI_FINALS') {
-                dynamicStatsMap[awayTLA].eliminated = true;
-              }
+            dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, false);
+            dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; 
+            if (m.stage !== 'SEMI_FINALS' && m.stage !== 'THIRD_PLACE' && m.stage !== 'FINAL') {
+              dynamicStatsMap[awayTLA].eliminated = true;
             }
           }
         } else if (m.score.winner === 'AWAY_TEAM') {
@@ -234,19 +231,15 @@ async function sync() {
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             matchWinnersSet.add(dynamicStatsMap[awayTLA].name);
-            if (m.stage !== 'GROUP_STAGE') {
-              dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, true);
-              dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; 
-            }
+            dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, true);
+            dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; 
           }
           if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
-            if (m.stage !== 'GROUP_STAGE') {
-              dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, false);
-              dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; 
-              if (m.stage !== 'SEMI_FINALS') {
-                dynamicStatsMap[homeTLA].eliminated = true;
-              }
+            dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, false);
+            dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; 
+            if (m.stage !== 'SEMI_FINALS' && m.stage !== 'THIRD_PLACE' && m.stage !== 'FINAL') {
+              dynamicStatsMap[homeTLA].eliminated = true;
             }
           }
         } else {
@@ -415,8 +408,7 @@ async function sync() {
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isWinner);
         const aggregatedGD = stats.gf - stats.ga;
 
-        // FIXED: England win override stripped out completely. 
-        // Wins are calculated directly from raw clean data elements.
+        // FIXED: Pure, untampered historical calculation count directly from source data loop
         let verifiedWins = stats.wins;
 
         await supabase.from('world_cup_leaderboard').update({
