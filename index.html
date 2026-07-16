@@ -112,22 +112,21 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
     // --- SIMPLIFIED SHORT STAGE BADGES LABELS ---
-    // FIXED: Realigned dictionary mapping values exactly to numeric structural requirements
     const STAGES = { 
       1: "Group", 
       3: "R32", 
       4: "R16", 
       5: "Quarters", 
       6: "Semis", 
-      5.5: "3RD PLAYOFF",
+      5.5: "3RD PLAYOFF", // Mapped to 5.5 per spec
       7.2: "4th Place", 
-      8.0: "FINALS",     
-      8.2: "3rd Place",  
+      8.0: "FINALS",      // 8.0 is the active finalists track
+      8.2: "3rd Place",   
       9: "2nd Place", 
       10: "Champion"
     };
 
-    // ADAPTIVE COUNTDOWN CLOCK ENGINE: Accounts for dynamic 15m vs 60m schedules
+    // ADAPTIVE COUNTDOWN CLOCK ENGINE
     function calculateTimeDelta(lastUpdatedString, isLiveWindowActive) {
       const lastUpdate = new Date(lastUpdatedString);
       const now = new Date();
@@ -225,7 +224,7 @@
           let activeLabelText = STAGES[team.stage] || "Group";
 
           // --- BULLETPROOF VISUAL PLAYOFF LABEL BINDING ---
-          // FIXED: Standardized conditional targets to capture the 8.0 Finals emerald theme correctly
+          // 8.0 correctly maps to the animated emerald green theme
           let stageLabelColor = 'text-amber-400 border-amber-500/20';
           if (stageNum === 8.0) {
             stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black animate-pulse';
