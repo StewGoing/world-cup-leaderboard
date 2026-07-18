@@ -1,11 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Load environmental variables secured in GitHub Secrets
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const FOOTBALL_DATA_API_KEY = process.env.FOOTBALL_DATA_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// Helper to format timestamps to readable Australian Eastern Standard Time
 function formatToAEST(utcString) {
   if (!utcString) return '';
   const date = new Date(utcString);
@@ -15,6 +17,7 @@ function formatToAEST(utcString) {
   return `${dayPart} ${datePart}, ${timePart}`;
 }
 
+// Hierarchy Calculation: Determines numerical ranking weight based on progress and outcome
 function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) {
   if (!stageString) return 1;
   const stage = stageString.toUpperCase();
@@ -24,11 +27,13 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('QUARTER')) return 5;
   if (stage.includes('SEMI')) return 6;
   
+  // REALIGNED: 5.5 = Active Playoff, 7.2/8.2 = Finished Outcomes, 8.0 = Active Finals Track
   if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.2 : 7.2) : 5.5;
   if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.0;
   return 1;
 }
 
+// Deducts penalty shootout goals from fullTime stats if they exist
 function getCleanMatchScore(matchObject) {
   let homeScore = matchObject.score?.fullTime?.home ?? 0;
   let awayScore = matchObject.score?.fullTime?.away ?? 0;
@@ -43,6 +48,7 @@ function getCleanMatchScore(matchObject) {
   return { homeScore, awayScore };
 }
 
+// Enforces that losers retain their current stage tier string instead of advancing down phantom paths
 function getAdvancedStage(currentStage, isWinner) {
   const stage = currentStage.toUpperCase();
   
@@ -61,6 +67,7 @@ function getAdvancedStage(currentStage, isWinner) {
   return currentStage;
 }
 
+// Maps country names directly to stable official FIFA codes
 function getOfficialTLA(countryName) {
   const overrides = {
     'SPAIN': 'ESP',
@@ -73,6 +80,7 @@ function getOfficialTLA(countryName) {
   return overrides[key] || key.substring(0, 3);
 }
 
+// Generate the news ticker commentary string
 function generateDraftCommentary(allMatches, sortedTeams) {
   const commentaryLines = [];
   const currentExecutionMs = new Date().getTime();
@@ -366,58 +374,65 @@ async function sync() {
     for (const team of dbTeams) {
       const teamTLA = getOfficialTLA(team.country);
       const stats = dynamicStatsMap[teamTLA];
-      
       const lastGame = lastFinishedMatchMap[teamTLA];
       
-      // FIXED: Output "N/A" if the team has completely completed their track
-      let nextMatchText = "TBD";
-      if (stats?.eliminated) {
-        nextMatchText = "❌ Eliminated";
-      } else if (stats?.matchStatus === 'FINISHED' && (stats?.stageString === 'THIRD_PLACE' || stats?.stageString === 'FINAL')) {
-        nextMatchText = "N/A";
-      } else {
-        nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || "TBD";
-      }
-
-      let dbMatchTime = null;
-      let dbMatchResult = null;
-      let dbMatchGDChange = 0;
-
-      if (lastGame) {
-        dbMatchTime = lastGame.utcDate;
-        const isHome = lastGame.homeTeam.tla === teamTLA;
-        const { homeScore, awayScore } = getCleanMatchScore(lastGame);
-        
-        if (lastGame.score.winner === 'HOME_TEAM') {
-          dbMatchResult = isHome ? 'WIN' : 'LOSS';
-          dbMatchGDChange = isHome ? (homeScore - awayScore) : (awayScore - homeScore);
-        } else if (lastGame.score.winner === 'AWAY_TEAM') {
-          dbMatchResult = isHome ? 'LOSS' : 'WIN';
-          dbMatchGDChange = isHome ? (homeScore - awayScore) : (awayScore - homeScore);
-        } else {
-          dbMatchResult = 'DRAW';
-          dbMatchGDChange = 0;
-        }
-      }
-
       if (stats) {
+        // 1. DETERMINE TRUE KNOCKOUT OUTCOMES FROM COMPLETED ROUNDS
         let trackWinnerOutcome = false;
+        let isStageCompletelyFinished = false;
+
         if (stats.stageString === 'THIRD_PLACE' && lastGame && lastGame.stage === 'THIRD_PLACE' && lastGame.status === 'FINISHED') {
+           isStageCompletelyFinished = true;
            const isHome = lastGame.homeTeam.tla === teamTLA;
            if ((isHome && lastGame.score.winner === 'HOME_TEAM') || (!isHome && lastGame.score.winner === 'AWAY_TEAM')) {
               trackWinnerOutcome = true;
            }
         }
-        // VALIDATED: Seamlessly handles final track calculations for Champion vs 2nd Place as well
+        
         if (stats.stageString === 'FINAL' && lastGame && lastGame.stage === 'FINAL' && lastGame.status === 'FINISHED') {
+           isStageCompletelyFinished = true;
            const isHome = lastGame.homeTeam.tla === teamTLA;
            if ((isHome && lastGame.score.winner === 'HOME_TEAM') || (!isHome && lastGame.score.winner === 'AWAY_TEAM')) {
               trackWinnerOutcome = true;
            }
         }
 
-        const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, trackWinnerOutcome);
+        // 2. FORWARD STATUS TO WEIGHT CALCULATOR
+        // If the final/3rd match isn't finished yet, force matchStatus to pending ('TIMED') so they stay on the active track!
+        const currentMatchStatus = isStageCompletelyFinished ? 'FINISHED' : 'TIMED';
+        const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, currentMatchStatus, trackWinnerOutcome);
         const aggregatedGD = stats.gf - stats.ga;
+
+        // 3. CLEAN COMPLETED VS UPCOMING GAME METADATA TEXT
+        let nextMatchText = "TBD";
+        if (stats.eliminated) {
+          nextMatchText = "❌ Eliminated";
+        } else if (isStageCompletelyFinished) {
+          nextMatchText = "N/A"; // Only say N/A if their final/3rd match actually whistled over
+        } else {
+          nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || "TBD";
+        }
+
+        let dbMatchTime = null;
+        let dbMatchResult = null;
+        let dbMatchGDChange = 0;
+
+        if (lastGame) {
+          dbMatchTime = lastGame.utcDate;
+          const isHome = lastGame.homeTeam.tla === teamTLA;
+          const { homeScore, awayScore } = getCleanMatchScore(lastGame);
+          
+          if (lastGame.score.winner === 'HOME_TEAM') {
+            dbMatchResult = isHome ? 'WIN' : 'LOSS';
+            dbMatchGDChange = isHome ? (homeScore - awayScore) : (awayScore - homeScore);
+          } else if (lastGame.score.winner === 'AWAY_TEAM') {
+            dbMatchResult = isHome ? 'LOSS' : 'WIN';
+            dbMatchGDChange = isHome ? (homeScore - awayScore) : (awayScore - homeScore);
+          } else {
+            dbMatchResult = 'DRAW';
+            dbMatchGDChange = 0;
+          }
+        }
 
         await supabase.from('world_cup_leaderboard').update({
           wins: stats.wins,
