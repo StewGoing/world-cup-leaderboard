@@ -1,13 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Load environmental variables secured in GitHub Secrets
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const FOOTBALL_DATA_API_KEY = process.env.FOOTBALL_DATA_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// Helper to format timestamps to readable Australian Eastern Standard Time
 function formatToAEST(utcString) {
   if (!utcString) return '';
   const date = new Date(utcString);
@@ -17,7 +15,6 @@ function formatToAEST(utcString) {
   return `${dayPart} ${datePart}, ${timePart}`;
 }
 
-// Hierarchy Calculation: Determines numerical ranking weight based on progress and outcome
 function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) {
   if (!stageString) return 1;
   const stage = stageString.toUpperCase();
@@ -27,13 +24,11 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('QUARTER')) return 5;
   if (stage.includes('SEMI')) return 6;
   
-  // REALIGNED: 5.5 = Active Playoff, 7.2/8.2 = Finished Outcomes, 8.0 = Active Finals Track
   if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.2 : 7.2) : 5.5;
   if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.0;
   return 1;
 }
 
-// Deducts penalty shootout goals from fullTime stats if they exist
 function getCleanMatchScore(matchObject) {
   let homeScore = matchObject.score?.fullTime?.home ?? 0;
   let awayScore = matchObject.score?.fullTime?.away ?? 0;
@@ -48,7 +43,6 @@ function getCleanMatchScore(matchObject) {
   return { homeScore, awayScore };
 }
 
-// Enforces that losers retain their current stage tier string instead of advancing down phantom paths
 function getAdvancedStage(currentStage, isWinner) {
   const stage = currentStage.toUpperCase();
   
@@ -67,7 +61,6 @@ function getAdvancedStage(currentStage, isWinner) {
   return currentStage;
 }
 
-// Maps country names directly to stable official FIFA codes
 function getOfficialTLA(countryName) {
   const overrides = {
     'SPAIN': 'ESP',
@@ -80,7 +73,6 @@ function getOfficialTLA(countryName) {
   return overrides[key] || key.substring(0, 3);
 }
 
-// Generate the news ticker commentary string
 function generateDraftCommentary(allMatches, sortedTeams) {
   const commentaryLines = [];
   const currentExecutionMs = new Date().getTime();
@@ -174,7 +166,7 @@ async function sync() {
       };
     });
 
-    // PASS 1: Aggregate Finished and Live matches, tracking stats chronologically
+    // PASS 1: Aggregate Finished matches cleanly
     allMatches.forEach(m => {
       const homeTLA = m.homeTeam?.tla;
       const awayTLA = m.awayTeam?.tla;
@@ -204,12 +196,12 @@ async function sync() {
           if (hasHome) {
             dynamicStatsMap[homeTLA].wins += 1;
             dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, true);
-            dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; 
+            dynamicStatsMap[homeTLA].matchStatus = 'FINISHED'; 
           }
           if (hasAway) {
             dynamicStatsMap[awayTLA].losses += 1;
             dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, false);
-            dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; 
+            dynamicStatsMap[awayTLA].matchStatus = 'FINISHED'; 
             if (m.stage !== 'SEMI_FINALS' && m.stage !== 'THIRD_PLACE' && m.stage !== 'FINAL') {
               dynamicStatsMap[awayTLA].eliminated = true;
             }
@@ -219,12 +211,12 @@ async function sync() {
           if (hasAway) {
             dynamicStatsMap[awayTLA].wins += 1;
             dynamicStatsMap[awayTLA].stageString = getAdvancedStage(m.stage, true);
-            dynamicStatsMap[awayTLA].matchStatus = 'TIMED'; 
+            dynamicStatsMap[awayTLA].matchStatus = 'FINISHED'; 
           }
           if (hasHome) {
             dynamicStatsMap[homeTLA].losses += 1;
             dynamicStatsMap[homeTLA].stageString = getAdvancedStage(m.stage, false);
-            dynamicStatsMap[homeTLA].matchStatus = 'TIMED'; 
+            dynamicStatsMap[homeTLA].matchStatus = 'FINISHED'; 
             if (m.stage !== 'SEMI_FINALS' && m.stage !== 'THIRD_PLACE' && m.stage !== 'FINAL') {
               dynamicStatsMap[homeTLA].eliminated = true;
             }
@@ -233,8 +225,17 @@ async function sync() {
           if (hasHome) dynamicStatsMap[homeTLA].draws += 1;
           if (hasAway) dynamicStatsMap[awayTLA].draws += 1;
         }
-      } else {
-        // Handle pending/live matches cleanly
+      }
+    });
+
+    // PASS 1.5: Handle Active In-Play/Live updates cleanly without breaking finished allocations
+    allMatches.forEach(m => {
+      const homeTLA = m.homeTeam?.tla;
+      const awayTLA = m.awayTeam?.tla;
+      const hasHome = homeTLA ? dynamicStatsMap.hasOwnProperty(homeTLA) : false;
+      const hasAway = awayTLA ? dynamicStatsMap.hasOwnProperty(awayTLA) : false;
+
+      if (m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED') {
         if (hasHome) {
           dynamicStatsMap[homeTLA].stageString = m.stage;
           dynamicStatsMap[homeTLA].matchStatus = m.status;
@@ -243,9 +244,7 @@ async function sync() {
           dynamicStatsMap[awayTLA].stageString = m.stage;
           dynamicStatsMap[awayTLA].matchStatus = m.status;
         }
-      }
 
-      if (m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED') {
         const homeScore = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0;
         const awayScore = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0;
         const liveLabelText = m.status === 'PAUSED' ? "🔥 LIVE (HT)" : "🔥 LIVE";
@@ -256,7 +255,7 @@ async function sync() {
       }
     });
 
-    // PASS 2: Universal, stage-matching bracket assignment loop for upcoming items
+    // PASS 2: Bracket assignment loop for future matches
     allMatches.forEach(m => {
       if (m.status === "TIMED" || m.status === "SCHEDULED") {
         let homeTLA = m.homeTeam?.tla;
@@ -295,22 +294,14 @@ async function sync() {
           if (digits && finishedMatchWinnerTLAs[digits[0]]) awayTLA = finishedMatchWinnerTLAs[digits[0]];
         }
 
-        if (m.stage === 'ROUND_OF_16' || m.stage === 'LAST_16') {
-          const currentWinners = Object.values(finishedMatchWinnerTLAs);
-          
-          if (currentWinners.includes('ESP') && currentWinners.includes('POR')) {
-            if (homeTLA === 'ESP' || awayTLA === 'POR') { homeTLA = 'ESP'; awayTLA = 'POR'; }
-            if (homeTLA === 'POR' || awayTLA === 'ESP') { homeTLA = 'POR'; awayTLA = 'ESP'; }
-            if (!homeTLA && !awayTLA && m.utcDate.includes('-07')) { homeTLA = 'ESP'; awayTLA = 'POR'; }
-          }
-          if (currentWinners.includes('ARG') && !homeTLA && !awayTLA && m.utcDate.includes('-08')) {
-            homeTLA = 'ARG';
-            awayTLA = 'EGY';
-          }
-          if (currentWinners.includes('COL') && !homeTLA && !awayTLA && m.utcDate.includes('-08') && homeTLA !== 'ARG') {
-            homeTLA = 'COL';
-            awayTLA = 'SUI';
-          }
+        // PROTECTION: Only switch track status back to TIMED if they haven't already finished it
+        if (homeTLA && dynamicStatsMap.hasOwnProperty(homeTLA) && dynamicStatsMap[homeTLA].matchStatus !== 'FINISHED') {
+          dynamicStatsMap[homeTLA].stageString = m.stage;
+          dynamicStatsMap[homeTLA].matchStatus = m.status;
+        }
+        if (awayTLA && dynamicStatsMap.hasOwnProperty(awayTLA) && dynamicStatsMap[awayTLA].matchStatus !== 'FINISHED') {
+          dynamicStatsMap[awayTLA].stageString = m.stage;
+          dynamicStatsMap[awayTLA].matchStatus = m.status;
         }
 
         const displayHome = homeTLA || "TBD";
@@ -355,19 +346,11 @@ async function sync() {
       country_tla: getOfficialTLA(t.country)
     }));
 
-    // Post-calculation loop ensures accurate tier weight processing
     const currentMockSortedTeams = preparedTeams.map(team => {
       const stats = dynamicStatsMap[team.country_tla] || {};
-      
-      // Secondary logic validation step ensures correct outcomes are set
-      let isActuallyWinnerOfFinalTrack = false;
-      if (stats.stageString === 'FINAL' && stats.matchStatus === 'FINISHED') {
-         // Determine final bracket winner directly
-      }
-
       return {
         ...team,
-        stageWeight: calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, isActuallyWinnerOfFinalTrack),
+        stageWeight: calculateStageWeight(stats.stageString, stats.eliminated, stats.matchStatus, false),
         wins: stats.wins || 0,
         gd: stats.gf - stats.ga
       };
@@ -384,13 +367,22 @@ async function sync() {
       const teamTLA = getOfficialTLA(team.country);
       const stats = dynamicStatsMap[teamTLA];
       
-      const nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || (stats?.eliminated ? "❌ Eliminated" : "TBD");
+      const lastGame = lastFinishedMatchMap[teamTLA];
+      
+      // FIXED: Output "N/A" if the team has completely completed their track
+      let nextMatchText = "TBD";
+      if (stats?.eliminated) {
+        nextMatchText = "❌ Eliminated";
+      } else if (stats?.matchStatus === 'FINISHED' && (stats?.stageString === 'THIRD_PLACE' || stats?.stageString === 'FINAL')) {
+        nextMatchText = "N/A";
+      } else {
+        nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || "TBD";
+      }
 
       let dbMatchTime = null;
       let dbMatchResult = null;
       let dbMatchGDChange = 0;
 
-      const lastGame = lastFinishedMatchMap[teamTLA];
       if (lastGame) {
         dbMatchTime = lastGame.utcDate;
         const isHome = lastGame.homeTeam.tla === teamTLA;
@@ -409,7 +401,6 @@ async function sync() {
       }
 
       if (stats) {
-        // Enforce safe evaluation parameters during final table assembly write steps
         let trackWinnerOutcome = false;
         if (stats.stageString === 'THIRD_PLACE' && lastGame && lastGame.stage === 'THIRD_PLACE' && lastGame.status === 'FINISHED') {
            const isHome = lastGame.homeTeam.tla === teamTLA;
@@ -417,6 +408,7 @@ async function sync() {
               trackWinnerOutcome = true;
            }
         }
+        // VALIDATED: Seamlessly handles final track calculations for Champion vs 2nd Place as well
         if (stats.stageString === 'FINAL' && lastGame && lastGame.stage === 'FINAL' && lastGame.status === 'FINISHED') {
            const isHome = lastGame.homeTeam.tla === teamTLA;
            if ((isHome && lastGame.score.winner === 'HOME_TEAM') || (!isHome && lastGame.score.winner === 'AWAY_TEAM')) {
