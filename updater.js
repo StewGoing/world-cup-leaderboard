@@ -27,9 +27,10 @@ function calculateStageWeight(stageString, isEliminated, matchStatus, isWinner) 
   if (stage.includes('QUARTER')) return 5;
   if (stage.includes('SEMI')) return 6;
   
-  // REALIGNED: 5.5 = Active Playoff, 7.2/8.2 = Finished Outcomes, 8.0 = Active Finals Track
-  if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.2 : 7.2) : 5.5;
-  if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.0;
+  // REALIGNED PER SYSTEM SPECIFICATION:
+  // 3rd Place Finisher = 8.0 | Active Finals Track / Finalists = 8.2
+  if (stage.includes('THIRD') || stage.includes('3RD')) return matchStatus === 'FINISHED' ? (isWinner ? 8.0 : 7.2) : 5.5;
+  if (stage.includes('FINAL')) return matchStatus === 'FINISHED' ? (isWinner ? 10 : 9) : 8.2;
   return 1;
 }
 
@@ -398,17 +399,17 @@ async function sync() {
         }
 
         // 2. FORWARD STATUS TO WEIGHT CALCULATOR
-        // If the final/3rd match isn't finished yet, force matchStatus to pending ('TIMED') so they stay on the active track!
+        // If final/3rd playoff match isn't finished yet, force status parameter to pending ('TIMED') to preserve live tracks
         const currentMatchStatus = isStageCompletelyFinished ? 'FINISHED' : 'TIMED';
         const stageWeightNum = calculateStageWeight(stats.stageString, stats.eliminated, currentMatchStatus, trackWinnerOutcome);
         const aggregatedGD = stats.gf - stats.ga;
 
-        // 3. CLEAN COMPLETED VS UPCOMING GAME METADATA TEXT
+        // 3. CLEAN UP COMPLETED VS UPCOMING GAME METADATA TEXT
         let nextMatchText = "TBD";
         if (stats.eliminated) {
           nextMatchText = "❌ Eliminated";
         } else if (isStageCompletelyFinished) {
-          nextMatchText = "N/A"; // Only say N/A if their final/3rd match actually whistled over
+          nextMatchText = "N/A";
         } else {
           nextMatchText = liveMatchMap[team.country] || nextMatchMap[team.country] || "TBD";
         }
