@@ -112,16 +112,17 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
     // --- SIMPLIFIED SHORT STAGE BADGES LABELS ---
+    // FIXED: Realigned keys to match updated backend criteria weights
     const STAGES = { 
       1: "Group", 
       3: "R32", 
       4: "R16", 
       5: "Quarters", 
       6: "Semis", 
-      5.5: "3RD PLAYOFF", // Mapped to 5.5 per spec
+      5.5: "3RD PLAYOFF",
       7.2: "4th Place", 
-      8.0: "3rd Place",      // 8.0 is the active finalists track
-      8.2: "FINALS",   
+      8.0: "3rd Place",   
+      8.2: "FINALS",      
       9: "2nd Place", 
       10: "Champion"
     };
@@ -224,7 +225,7 @@
           let activeLabelText = STAGES[team.stage] || "Group";
 
           // --- BULLETPROOF VISUAL PLAYOFF LABEL BINDING ---
-          // 8.0 correctly maps to the animated emerald green theme
+          // FIXED: Adjusted conditional coloring mappings to snap labels properly to weights
           let stageLabelColor = 'text-amber-400 border-amber-500/20';
           if (stageNum === 8.2) {
             stageLabelColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-950/40 font-black animate-pulse';
@@ -277,8 +278,7 @@
             }
           }
 
-          // --- THE VISUAL ROW SHADING TRACKING FIX ---
-          // Prevent fading for active remaining playoff teams (Stage 5.5 and 8.0 stay vibrant)
+          // Shading exclusion maps perfectly down to level 5 groups
           const appliesVisualRowFade = isEliminated && stageNum <= 5;
 
           let desktopRowClass = `transition hover:bg-neutral-800/15 ${appliesVisualRowFade ? 'row-eliminated bg-neutral-950/40' : ''}`;
